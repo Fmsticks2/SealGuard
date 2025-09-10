@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synapse PDP Testing Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #444;
+            border-bottom: 2px solid #007cba;
+            padding-bottom: 10px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #005a8b;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .network-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .network-option {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .network-option.selected {
+            border-color: #007cba;
+            background-color: #e7f3ff;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        .root-entry {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        .root-entry h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .add-root-btn, .remove-root-btn {
+            background-color: #28a745;
+            font-size: 14px;
+            padding: 5px 10px;
+        }
+        .remove-root-btn {
+            background-color: #dc3545;
+        }
+        .add-root-btn:hover {
+            background-color: #218838;
+        }
+        .remove-root-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Synapse PDP Testing Tool</h1>
+
+        <div class="form-group">
+            <label>Network:</label>
+            <div class="network-selector">
+                <div class="network-option selected" data-network="calibration">
+                    <strong>Calibration Testnet</strong><br>
+                    <small>Chain ID: 314159</small>
+                </div>
+                <div class="network-option" data-network="mainnet">
+                    <strong>Mainnet</strong><br>
+                    <small>Chain ID: 314</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Wallet Connection:</label>
+            <button id="connectWalletBtn">Connect MetaMask</button>
+            <div id="walletStatus" class="help-text">Click to connect your MetaMask wallet for signing</div>
+        </div>
+
+        <div class="form-group">
+            <label for="pdpEndpoint">PDP Server Endpoint:</label>
+            <input type="text" id="pdpEndpoint" value="" placeholder="e.g., https://pdp.example.com" />
+            <div class="help-text">The URL of the PDP server (Curio) to interact with</div>
+        </div>
+
+        <div class="form-group">
+            <label for="pandoraAddress">Pandora Contract:</label>
+            <input type="text" id="pandoraAddress" value="" placeholder="Will be auto-filled based on network" />
+            <div class="help-text">Address of the Pandora service contract</div>
+        </div>
+
+        <!-- STORAGE PROVIDERS SECTION -->
+        <div class="section">
+            <h2>Storage Providers</h2>
+            <div class="form-group">
+                <button id="listProvidersBtn">List Approved Providers</button>
+                <div class="help-text">View all storage providers approved to use this Pandora service</div>
+            </div>
+            <div id="providersStatus" class="status info" style="display: none; margin-top: 10px;"></div>
+        </div>
+
+        <!-- CREATE PROOF SET SECTION -->
+        <div class="section">
+            <h2>Create Proof Set</h2>
+
+            <div class="form-group">
+                <label for="payee">Storage Provider Address:</label>
+                <input type="text" id="payee" value="" placeholder="0x..." />
+                <div class="help-text">Address of the storage provider that will receive payments (must be whitelisted in Pandora)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="clientDataSetId">Client Dataset ID:</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="clientDataSetId" value="0" style="flex: 1;" />
+                    <button type="button" id="autoFillClientDataSetId" class="add-root-btn" disabled>Auto-fill</button>
+                </div>
+                <div class="help-text">Unique identifier for your dataset (click Auto-fill to get next available ID)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="withCDN">Enable CDN:</label>
+                <select id="withCDN">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+                <div class="help-text">Whether to enable CDN services for faster retrieval</div>
+            </div>
+
+            <div class="form-group">
+                <button id="createProofSetBtn" disabled>Create Proof Set</button>
+                <button id="checkStatusBtn" disabled>Check Status</button>
+                <button id="autoMonitorBtn" disabled style="background-color: #28a745;">Auto-Monitor</button>
+            </div>
+        </div>
+
+        <!-- ADD ROOTS SECTION -->
+        <div class="section">
+            <h2>Add Roots to Proof Set</h2>
+
+            <div class="form-group">
+                <label for="pdpVerifierProofSetId">Proof Set ID:</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="pdpVerifierProofSetId" value="" style="flex: 1;" />
+                    <button type="button" id="discoverProofSets" class="add-root-btn" disabled>Discover</button>
+                </div>
+                <div class="help-text">Proof set ID to add roots to (click Discover to see your proof sets)</div>
+            </div>
+
+
+            <div class="form-group">
+                <label for="addRootsClientDataSetId">Client Dataset ID:</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="addRootsClientDataSetId" value="0" style="flex: 1;" />
+                    <button type="button" id="autoFillAddRootsInfo" class="add-root-btn" disabled>Auto-fill</button>
+                </div>
+                <div class="help-text">Unique identifier for your dataset (click Auto-fill to get from proof set)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="nextRootId">Next Root ID:</label>
+                <input type="number" id="nextRootId" value="0" />
+                <div class="help-text">The next root ID for this proof set (auto-filled when you select a proof set)</div>
+            </div>
+
+            <div class="form-group">
+                <label>Root Data Entries:</label>
+                <div class="help-text">Add the root CIDs and their raw data sizes to include in the proof set</div>
+                <div id="rootEntries">
+                    <div class="root-entry">
+                        <h4>Root Entry 1</h4>
+                        <div style="margin-bottom: 10px;">
+                            <label>Root CID:</label>
+                            <input type="text" class="root-cid" placeholder="e.g., baga6ea4seaqnfohehz3exlkn63ufp5nkgcxfmyxlscwvgoem56wocg7qhvidzpq" />
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <label>Raw Size (bytes):</label>
+                            <input type="number" class="root-size" placeholder="e.g., 1048576" />
+                        </div>
+                        <button type="button" class="remove-root-btn" onclick="removeRootEntry(this)">Remove</button>
+                    </div>
+                </div>
+                <button type="button" class="add-root-btn" onclick="addRootEntry()">Add Another Root</button>
+            </div>
+
+            <div class="form-group">
+                <button id="addRootsBtn" disabled>Add Roots</button>
+            </div>
+        </div>
+
+        <!-- MONITOR PROOF SET SECTION -->
+        <div class="section">
+            <h2>Monitor Proof Set</h2>
+            <div class="form-group">
+                <label for="monitorTxHash">Transaction Hash:</label>
+                <input type="text" id="monitorTxHash" placeholder="0x..." />
+                <div class="help-text">Enter a proof set creation transaction hash to monitor its status</div>
+            </div>
+            <div class="form-group">
+                <button id="monitorTxBtn">Check Transaction Status</button>
+            </div>
+        </div>
+
+        <div id="status" class="status info" style="display: none;"></div>
+    </div>
+
+    <!-- Load ethers from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+
+    <!-- Load Synapse SDK browser bundle -->
+    <script src="../dist/browser/synapse-sdk.min.js"></script>
+
+    <script>
+        // The SDK is now available as window.SynapseSDK
+        const { PDPAuthHelper, PDPServer, PandoraService } = window.SynapseSDK;
+
+        // Use CONTRACT_ADDRESSES from the SDK
+        const { CONTRACT_ADDRESSES } = window.SynapseSDK;
+
+        let currentNetwork = 'calibration'
+        let currentTxHash = null
+        let connectedSigner = null
+        let connectedAddress = null
+        let rootEntryCounter = 1
+        let pandoraService = null
+        let provider = null
+
+        // Network selection
+        document.querySelectorAll('.network-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.network-option').forEach(o => o.classList.remove('selected'))
+                option.classList.add('selected')
+                currentNetwork = option.dataset.network
+                updateContractAddress()
+            })
+        })
+
+        function updateContractAddress() {
+            const pandoraInput = document.getElementById('pandoraAddress')
+            pandoraInput.value = CONTRACT_ADDRESSES.PANDORA_SERVICE[currentNetwork] || ''
+        }
+
+        // Root entry management
+        function addRootEntry() {
+            rootEntryCounter++
+            const rootEntries = document.getElementById('rootEntries')
+            const newEntry = document.createElement('div')
+            newEntry.className = 'root-entry'
+            newEntry.innerHTML = `
+                <h4>Root Entry ${rootEntryCounter}</h4>
+                <div style="margin-bottom: 10px;">
+                    <label>Root CID:</label>
+                    <input type="text" class="root-cid" placeholder="e.g., baga6ea4seaqnfohehz3exlkn63ufp5nkgcxfmyxlscwvgoem56wocg7qhvidzpq" />
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label>Raw Size (bytes):</label>
+                    <input type="number" class="root-size" placeholder="e.g., 1048576" />
+                </div>
+                <button type="button" class="remove-root-btn" onclick="removeRootEntry(this)">Remove</button>
+            `
+            rootEntries.appendChild(newEntry)
+        }
+
+        function removeRootEntry(button) {
+            const rootEntries = document.getElementById('rootEntries')
+            if (rootEntries.children.length > 1) {
+                button.parentElement.remove()
+            } else {
+                showStatus('Cannot remove the last root entry. At least one root entry is required.', 'error')
+            }
+        }
+
+        // MetaMask connection functionality
+        async function connectMetaMask() {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask is not installed. Please install MetaMask browser extension.')
+                }
+
+                showStatus('Connecting to MetaMask...', 'info')
+
+                // Request account access
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+
+                if (accounts.length === 0) {
+                    throw new Error('No accounts found. Please unlock MetaMask.')
+                }
+
+                // Create ethers provider and signer for MetaMask
+                provider = new ethers.BrowserProvider(window.ethereum)
+                connectedSigner = await provider.getSigner()
+                connectedAddress = accounts[0]
+
+                // Check network
+                const network = await provider.getNetwork()
+                const expectedChainId = currentNetwork === 'mainnet' ? 314 : 314159
+
+                if (Number(network.chainId) !== expectedChainId) {
+                    showStatus(`Wrong network! Please switch to ${currentNetwork === 'mainnet' ? 'Filecoin Mainnet' : 'Calibration Testnet'} (Chain ID: ${expectedChainId})`, 'error')
+                    return
+                }
+
+
+                // Update UI
+                document.getElementById('connectWalletBtn').textContent = 'Connected'
+                document.getElementById('connectWalletBtn').disabled = true
+                document.getElementById('walletStatus').textContent = `Connected: ${connectedAddress.slice(0, 6)}...${connectedAddress.slice(-4)} on ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Calibration'}`
+                document.getElementById('createProofSetBtn').disabled = false
+                document.getElementById('addRootsBtn').disabled = false
+                document.getElementById('autoFillClientDataSetId').disabled = false
+                document.getElementById('discoverProofSets').disabled = false
+                document.getElementById('autoFillAddRootsInfo').disabled = false
+
+                // Create PandoraService instance
+                const pandoraAddress = document.getElementById('pandoraAddress').value
+                pandoraService = new PandoraService(provider, pandoraAddress)
+
+                showStatus(`Successfully connected to MetaMask!
+Address: ${connectedAddress}
+Network: ${currentNetwork === 'mainnet' ? 'Filecoin Mainnet' : 'Calibration Testnet'} (${network.chainId})
+Pandora: ${pandoraAddress}`, 'success')
+
+            } catch (error) {
+                console.error('MetaMask connection error:', error)
+                showStatus(`Failed to connect to MetaMask: ${error.message}`, 'error')
+
+                // Reset connection state
+                connectedSigner = null
+                connectedAddress = null
+                document.getElementById('connectWalletBtn').textContent = 'Connect MetaMask'
+                document.getElementById('connectWalletBtn').disabled = false
+                document.getElementById('walletStatus').textContent = 'Click to connect your MetaMask wallet for signing'
+                document.getElementById('createProofSetBtn').disabled = true
+                document.getElementById('addRootsBtn').disabled = true
+            }
+        }
+
+        // Network change handler
+        if (window.ethereum) {
+            window.ethereum.on('chainChanged', () => {
+                // Reload page on network change to reset connection
+                window.location.reload()
+            })
+
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length === 0) {
+                    // User disconnected
+                    connectedSigner = null
+                    connectedAddress = null
+                    document.getElementById('connectWalletBtn').textContent = 'Connect MetaMask'
+                    document.getElementById('connectWalletBtn').disabled = false
+                    document.getElementById('walletStatus').textContent = 'Click to connect your MetaMask wallet for signing'
+                    document.getElementById('createProofSetBtn').disabled = true
+                    document.getElementById('addRootsBtn').disabled = true
+                    showStatus('MetaMask disconnected', 'info')
+                } else {
+                    // Account changed, reconnect
+                    connectMetaMask()
+                }
+            })
+        }
+
+        document.getElementById('connectWalletBtn').addEventListener('click', connectMetaMask)
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status')
+            statusDiv.textContent = message
+            statusDiv.className = `status ${type}`
+            statusDiv.style.display = 'block'
+        }
+
+        function validateInputs() {
+            const pdpEndpoint = document.getElementById('pdpEndpoint').value
+            const pandoraAddress = document.getElementById('pandoraAddress').value
+
+            if (!connectedSigner) {
+                throw new Error('Please connect your MetaMask wallet first')
+            }
+
+            if (!pdpEndpoint || !pdpEndpoint.startsWith('http')) {
+                throw new Error('Please enter a valid PDP endpoint URL')
+            }
+
+            if (!pandoraAddress || !ethers.isAddress(pandoraAddress)) {
+                throw new Error('Please enter a valid Pandora contract address')
+            }
+
+            return { pdpEndpoint, pandoraAddress }
+        }
+
+        function validateCreateProofSetInputs() {
+            const { pdpEndpoint, pandoraAddress } = validateInputs()
+            const payee = document.getElementById('payee').value
+
+            if (!payee || !ethers.isAddress(payee)) {
+                throw new Error('Please enter a valid storage provider address')
+            }
+
+            return { pdpEndpoint, pandoraAddress, payee }
+        }
+
+        function validateAddRootsInputs() {
+            const { pdpEndpoint, pandoraAddress } = validateInputs()
+
+            const pdpVerifierProofSetId = parseInt(document.getElementById('pdpVerifierProofSetId').value)
+            const clientDataSetId = parseInt(document.getElementById('addRootsClientDataSetId').value)
+            const nextRootId = parseInt(document.getElementById('nextRootId').value)
+
+            if (isNaN(pdpVerifierProofSetId) || pdpVerifierProofSetId < 0) {
+                throw new Error('Please enter a valid proof set ID (use Discover to auto-fill)')
+            }
+
+            if (isNaN(clientDataSetId) || clientDataSetId < 0) {
+                throw new Error('Please enter a valid client dataset ID')
+            }
+
+            if (isNaN(nextRootId) || nextRootId < 0) {
+                throw new Error('Please enter a valid next root ID')
+            }
+
+            // Validate root entries
+            const rootEntries = document.querySelectorAll('.root-entry')
+            const rootDataArray = []
+
+            for (let i = 0; i < rootEntries.length; i++) {
+                const entry = rootEntries[i]
+                const cidInput = entry.querySelector('.root-cid')
+                const sizeInput = entry.querySelector('.root-size')
+
+                const cid = cidInput.value.trim()
+                const rawSize = parseInt(sizeInput.value)
+
+                if (!cid) {
+                    throw new Error(`Root entry ${i + 1}: Please enter a root CID`)
+                }
+
+                if (isNaN(rawSize) || rawSize <= 0) {
+                    throw new Error(`Root entry ${i + 1}: Please enter a valid raw size (positive number)`)
+                }
+
+                rootDataArray.push({
+                    cid: cid,
+                    rawSize: rawSize
+                })
+            }
+
+            if (rootDataArray.length === 0) {
+                throw new Error('Please add at least one root entry')
+            }
+
+            return { pdpEndpoint, pandoraAddress, pdpVerifierProofSetId, clientDataSetId, nextRootId, rootDataArray }
+        }
+
+        // Create Proof Set functionality
+        document.getElementById('createProofSetBtn').addEventListener('click', async () => {
+            try {
+                showStatus('Validating inputs...', 'info')
+
+                const { pdpEndpoint, pandoraAddress, payee } = validateCreateProofSetInputs()
+                const clientDataSetId = parseInt(document.getElementById('clientDataSetId').value)
+                const withCDN = document.getElementById('withCDN').value === 'true'
+
+
+                showStatus('Creating PDP auth helper and server...', 'info')
+
+                // Create auth helper and PDPServer using connected MetaMask signer
+                const chainId = currentNetwork === 'mainnet' ? 314 : 314159
+                const authHelper = new PDPAuthHelper(pandoraAddress, connectedSigner, chainId)
+                const pdpServer = new PDPServer(authHelper, pdpEndpoint, pdpEndpoint)
+
+                showStatus('Signing and sending proof set creation...', 'info')
+
+                // Create proof set using the SDK's PDPServer
+                const result = await pdpServer.createProofSet(clientDataSetId, payee, withCDN, pandoraAddress)
+
+                currentTxHash = result.txHash
+                document.getElementById('checkStatusBtn').disabled = false
+                document.getElementById('autoMonitorBtn').disabled = false
+
+                showStatus(`Proof set creation submitted successfully!
+Transaction Hash: ${result.txHash}
+Status URL: ${result.statusUrl}
+
+Starting automatic monitoring...`, 'success')
+
+                // Automatically start monitoring the transaction
+                startStatusPolling()
+
+            } catch (error) {
+                console.error('Error creating proof set:', error)
+                showStatus(`Error: ${error.message}`, 'error')
+            }
+        })
+
+        // Add Roots functionality
+        document.getElementById('addRootsBtn').addEventListener('click', async () => {
+            try {
+                showStatus('Validating inputs...', 'info')
+
+                const { pdpEndpoint, pandoraAddress, pdpVerifierProofSetId, clientDataSetId, nextRootId, rootDataArray } = validateAddRootsInputs()
+
+
+                showStatus('Creating PDP auth helper and server...', 'info')
+
+                // Create auth helper and PDPServer using connected MetaMask signer
+                const chainId = currentNetwork === 'mainnet' ? 314 : 314159
+                const authHelper = new PDPAuthHelper(pandoraAddress, connectedSigner, chainId)
+                const pdpServer = new PDPServer(authHelper, pdpEndpoint, pdpEndpoint)
+
+                showStatus('Signing and sending add roots request...', 'info')
+
+                // Add roots using the SDK's PDPServer (uses PDPVerifier proof set ID)
+                const result = await pdpServer.addRoots(pdpVerifierProofSetId, clientDataSetId, nextRootId, rootDataArray)
+
+                showStatus(`Roots added successfully!
+${result.message}
+
+Proof Set ID: ${pdpVerifierProofSetId}
+Total roots added: ${rootDataArray.length}
+Next root ID will be: ${nextRootId + rootDataArray.length}`, 'success')
+
+            } catch (error) {
+                console.error('Error adding roots:', error)
+                showStatus(`Error: ${error.message}`, 'error')
+            }
+        })
+
+        // Check Status functionality with comprehensive checking
+        document.getElementById('checkStatusBtn').addEventListener('click', async () => {
+            if (!currentTxHash) {
+                showStatus('No transaction hash available. Create a proof set first.', 'error')
+                return
+            }
+
+            try {
+                showStatus('Checking comprehensive proof set creation status...', 'info')
+
+                const { pdpEndpoint, pandoraAddress } = validateInputs()
+
+                // Create PDPServer for status checking
+                const authHelper = new PDPAuthHelper(pandoraAddress, connectedSigner, currentNetwork === 'mainnet' ? 314 : 314159)
+                const pdpServer = new PDPServer(authHelper, pdpEndpoint, pdpEndpoint)
+
+                // Get comprehensive status using PandoraService
+                const comprehensiveStatus = await pandoraService.getComprehensiveProofSetStatus(
+                    currentTxHash,
+                    pdpServer
+                )
+
+                // Build detailed status message
+                let statusMessage = `🔍 Comprehensive Proof Set Status:\n\n`
+
+                // Summary details
+                statusMessage += `📊 Overall Status: ${comprehensiveStatus.summary.isComplete ? 'Complete' : 'In Progress'}\n`
+                if (comprehensiveStatus.summary.error) {
+                    statusMessage += `❌ Error: ${comprehensiveStatus.summary.error}\n`
+                }
+                if (comprehensiveStatus.summary.proofSetId) {
+                    statusMessage += `✅ Proof Set ID: ${comprehensiveStatus.summary.proofSetId}\n`
+                }
+                statusMessage += `\n`
+
+                // Chain verification details
+                const chain = comprehensiveStatus.chainStatus
+                statusMessage += `⛓️ On-Chain Verification:\n`
+                statusMessage += `  • Transaction Mined: ${chain.transactionMined ? '✅' : '⏳'}\n`
+                if (chain.transactionMined) {
+                    statusMessage += `  • Transaction Success: ${chain.transactionSuccess ? '✅' : '❌'}\n`
+                    statusMessage += `  • Block Number: ${chain.blockNumber ?? 'N/A'}\n`
+                    statusMessage += `  • Gas Used: ${chain.gasUsed != null ? chain.gasUsed.toString() : 'N/A'}\n`
+                }
+                if (chain.proofSetId != null) {
+                    statusMessage += `  • Proof Set ID: ${chain.proofSetId}\n`
+                    statusMessage += `  • Proof Set Live: ${chain.proofSetLive ? '✅' : '❌'}\n`
+                }
+                if (chain.error) {
+                    statusMessage += `  • Error: ${chain.error}\n`
+                }
+                statusMessage += `\n`
+
+                // PDP server status details (if available)
+                if (comprehensiveStatus.serverStatus) {
+                    const pdpServerStatus = comprehensiveStatus.serverStatus
+                    statusMessage += `🖥️ PDP Server Status:\n`
+                    statusMessage += `  • Service: ${pdpServerStatus.service}\n`
+                    statusMessage += `  • TX Status: ${pdpServerStatus.txStatus}\n`
+                    statusMessage += `  • Success: ${pdpServerStatus.ok === null ? 'Pending' : (pdpServerStatus.ok ? '✅' : '❌')}\n`
+                    statusMessage += `  • Proof Set Created: ${pdpServerStatus.proofsetCreated ? '✅' : '❌'}\n`
+                    if (pdpServerStatus.proofSetId) {
+                        statusMessage += `  • Server Proof Set ID: ${pdpServerStatus.proofSetId}\n`
+                    }
+                } else {
+                    statusMessage += `🖥️ PDP Server Status: Not available (using chain verification only)\n`
+                }
+
+                // Determine status type based on overall assessment
+                const statusType = comprehensiveStatus.summary.error
+                    ? 'error'
+                    : (comprehensiveStatus.summary.isComplete ? 'success' : 'info')
+
+                showStatus(statusMessage, statusType)
+
+                // Auto-populate proof set ID for add roots if creation succeeded
+                if (chain.proofSetLive && chain.proofSetId != null) {
+                    document.getElementById('pdpVerifierProofSetId').value = chain.proofSetId
+                    
+                    // Also try to get the additional info for this new proof set
+                    try {
+                        const proofSets = await pandoraService.getClientProofSetsWithDetails(connectedAddress)
+                        const newProofSet = proofSets.find(ps => ps.pdpVerifierProofSetId === chain.proofSetId)
+                        if (newProofSet) {
+                            document.getElementById('addRootsClientDataSetId').value = newProofSet.clientDataSetId
+                            document.getElementById('nextRootId').value = newProofSet.nextRootId
+                        }
+                    } catch (e) {
+                        // Ignore errors here, the proof set ID is the important part
+                    }
+                    
+                    showStatus(statusMessage + `\n✨ Auto-populated proof set ID ${chain.proofSetId} for adding roots!`, statusType)
+                }
+
+            } catch (error) {
+                console.error('Error checking comprehensive status:', error)
+                showStatus(`Error checking status: ${error.message}`, 'error')
+            }
+        })
+
+        // Auto-polling status checker for active transactions
+        let statusPollingInterval = null
+
+        function startStatusPolling() {
+            if (!currentTxHash || statusPollingInterval) return
+
+            showStatus('Starting automatic status monitoring...', 'info')
+            updateMonitoringUI(true)
+
+            statusPollingInterval = setInterval(async () => {
+                try {
+                    const { pdpEndpoint, pandoraAddress } = validateInputs()
+                    const authHelper = new PDPAuthHelper(pandoraAddress, connectedSigner, currentNetwork === 'mainnet' ? 314 : 314159)
+                    const pdpServer = new PDPServer(authHelper, pdpEndpoint, pdpEndpoint)
+
+                    const status = await pandoraService.getComprehensiveProofSetStatus(
+                        currentTxHash,
+                        pdpServer
+                    )
+
+                    // Update UI with current status
+                    const shortStatus = `🔄 Auto-monitoring: ${status.summary.isComplete ? 'Complete' : 'In Progress'}`
+                    const statusElement = document.getElementById('status')
+                    if (statusElement.textContent.includes('Auto-monitoring')) {
+                        statusElement.textContent = shortStatus
+                    }
+
+                    // Stop polling if complete
+                    if (status.summary.isComplete) {
+                        stopStatusPolling()
+
+                        // Trigger full status display
+                        document.getElementById('checkStatusBtn').click()
+                    }
+
+                } catch (error) {
+                    console.error('Auto-polling error:', error)
+                    // Don't stop polling on errors - network might be temporary
+                }
+            }, 3000) // Poll every 3 seconds
+        }
+
+        function stopStatusPolling() {
+            if (statusPollingInterval) {
+                clearInterval(statusPollingInterval)
+                statusPollingInterval = null
+                updateMonitoringUI(false)
+            }
+        }
+
+        function updateMonitoringUI(isMonitoring) {
+            const autoMonitorBtn = document.getElementById('autoMonitorBtn')
+            if (isMonitoring) {
+                autoMonitorBtn.textContent = 'Stop Monitoring'
+                autoMonitorBtn.style.backgroundColor = '#dc3545' // Red
+            } else {
+                autoMonitorBtn.textContent = 'Auto-Monitor'
+                autoMonitorBtn.style.backgroundColor = '#28a745' // Green
+            }
+        }
+
+        // Auto-monitor button handler
+        document.getElementById('autoMonitorBtn').addEventListener('click', () => {
+            if (statusPollingInterval) {
+                // Currently monitoring - stop it
+                stopStatusPolling()
+                showStatus('Stopped automatic monitoring', 'info')
+            } else {
+                // Not monitoring - start it
+                if (!currentTxHash) {
+                    showStatus('No transaction to monitor. Create a proof set first.', 'error')
+                    return
+                }
+                startStatusPolling()
+                updateMonitoringUI(true)
+            }
+        })
+
+        // Discovery button handlers
+        document.getElementById('autoFillClientDataSetId').addEventListener('click', async () => {
+            try {
+                if (!pandoraService || !connectedAddress) {
+                    showStatus('Please connect your wallet first', 'error')
+                    return
+                }
+
+                showStatus('Getting next available client dataset ID...', 'info')
+                const nextId = await pandoraService.getNextClientDataSetId(connectedAddress)
+                document.getElementById('clientDataSetId').value = nextId
+                showStatus(`Next client dataset ID: ${nextId}`, 'success')
+            } catch (error) {
+                console.error('Error getting next client dataset ID:', error)
+                showStatus(`Error: ${error.message}`, 'error')
+            }
+        })
+
+        document.getElementById('discoverProofSets').addEventListener('click', async () => {
+            try {
+                if (!pandoraService || !connectedAddress) {
+                    showStatus('Please connect your wallet first', 'error')
+                    return
+                }
+
+                showStatus('Discovering your proof sets with detailed information...', 'info')
+                
+                const proofSetsWithDetails = await pandoraService.getClientProofSetsWithDetails(connectedAddress)
+                const managedProofSets = proofSetsWithDetails.filter(ps => ps.isManaged)
+
+                if (proofSetsWithDetails.length === 0) {
+                    showStatus('No proof sets found for your address in this Pandora contract', 'info')
+                    return
+                }
+
+                // Get unmanaged proof sets (those from other Pandora contracts)
+                const unmanagedProofSets = proofSetsWithDetails.filter(ps => !ps.isManaged)
+
+                let message = `Found ${proofSetsWithDetails.length} proof set(s) total:\n\n`
+
+                if (managedProofSets.length > 0) {
+                    message += `✅ YOUR PROOF SETS (${managedProofSets.length}):\n\n`
+                    managedProofSets.forEach((ps, index) => {
+                        message += `${index + 1}. Proof Set ID: ${ps.pdpVerifierProofSetId} (Dataset ${ps.clientDataSetId})\n`
+                        message += `   Status: ${ps.isLive ? '🟢 Live' : '🔴 Not Live'}\n`
+                        message += `   Current Roots: ${ps.currentRootCount}\n`
+                        message += `   Next Root ID: ${ps.nextRootId}\n`
+                        message += `   Storage Provider: ${ps.payee}\n`
+                        message += `   CDN: ${ps.withCDN ? 'Yes' : 'No'}\n`
+                        message += `   Commission: ${ps.commissionBps / 100}%\n\n`
+                    })
+                }
+
+                if (unmanagedProofSets.length > 0) {
+                    message += `⚠️ OTHER PROOF SETS (${unmanagedProofSets.length}):\n\n`
+                    unmanagedProofSets.forEach((ps, index) => {
+                        message += `${index + 1}. Proof Set ID: ${ps.pdpVerifierProofSetId} (Dataset ${ps.clientDataSetId})\n`
+                        message += `   Status: ${ps.isLive ? '🟢 Live' : '🔴 Not Live'} - Cannot manage from this interface\n`
+                        message += `   Current Roots: ${ps.currentRootCount}\n`
+                        message += `   Storage Provider: ${ps.payee}\n`
+                        message += `   CDN: ${ps.withCDN ? 'Yes' : 'No'}\n\n`
+                    })
+                }
+
+                if (managedProofSets.length > 0) {
+                    message += '✨ Auto-selected the first managed proof set for adding roots.'
+                } else {
+                    message += '❌ No proof sets managed by this Pandora contract. You cannot add roots from this interface.'
+                }
+
+                showStatus(message, managedProofSets.length > 0 ? 'success' : 'info')
+
+                // Auto-populate the first MANAGED proof set if found
+                if (managedProofSets.length > 0) {
+                    const firstManaged = managedProofSets[0]
+                    // Use PDPVerifier proof set ID throughout
+                    document.getElementById('pdpVerifierProofSetId').value = firstManaged.pdpVerifierProofSetId
+                    document.getElementById('addRootsClientDataSetId').value = firstManaged.clientDataSetId
+                    document.getElementById('nextRootId').value = firstManaged.nextRootId
+                } else {
+                    // Clear the fields if no managed proof sets
+                    document.getElementById('pdpVerifierProofSetId').value = ''
+                    document.getElementById('addRootsClientDataSetId').value = ''
+                    document.getElementById('nextRootId').value = ''
+                }
+            } catch (error) {
+                console.error('Error discovering proof sets:', error)
+                showStatus(`Error: ${error.message}`, 'error')
+            }
+        })
+
+        document.getElementById('autoFillAddRootsInfo').addEventListener('click', async () => {
+            try {
+                if (!pandoraService) {
+                    showStatus('Please connect your wallet first', 'error')
+                    return
+                }
+
+                const proofSetId = parseInt(document.getElementById('pdpVerifierProofSetId').value)
+                if (isNaN(proofSetId) || proofSetId < 0) {
+                    showStatus('Please enter a valid proof set ID first', 'error')
+                    return
+                }
+
+                showStatus('Getting add roots information...', 'info')
+                
+                try {
+                    const proofSets = await pandoraService.getClientProofSetsWithDetails(connectedAddress)
+                    const proofSet = proofSets.find(ps => ps.pdpVerifierProofSetId === proofSetId)
+                    
+                    if (!proofSet) {
+                        showStatus('Proof set not found or not owned by connected wallet', 'error')
+                        return
+                    }
+                    
+                    if (!proofSet.isManaged) {
+                        showStatus('This proof set is not managed by the current Pandora contract', 'error')
+                        return
+                    }
+                    
+                    const addRootsInfo = await pandoraService.getAddRootsInfo(proofSet.pdpVerifierProofSetId)
+                    
+                    // Keep the proof set ID as entered
+                    document.getElementById('addRootsClientDataSetId').value = addRootsInfo.clientDataSetId
+                    document.getElementById('nextRootId').value = addRootsInfo.nextRootId
+                    
+                    showStatus(`Auto-filled:
+Proof Set ID: ${proofSetId}
+Client Dataset ID: ${addRootsInfo.clientDataSetId}
+Next Root ID: ${addRootsInfo.nextRootId}
+Current roots in proof set: ${addRootsInfo.currentRootCount}`, 'success')
+                } catch (error) {
+                    console.error('Error getting add roots info:', error)
+                    showStatus(`Error: ${error.message}`, 'error')
+                }
+            } catch (error) {
+                console.error('Error getting add roots info:', error)
+                console.error(error.stack)
+                showStatus(`Error: ${error.message}`, 'error')
+            }
+        })
+
+        // Pandora address change handler
+        document.getElementById('pandoraAddress').addEventListener('change', async () => {
+            const newAddress = document.getElementById('pandoraAddress').value.trim()
+            
+            if (!newAddress) {
+                showStatus('Pandora address cannot be empty', 'error')
+                return
+            }
+            
+            if (!ethers.isAddress(newAddress)) {
+                showStatus('Invalid Pandora contract address format', 'error')
+                return
+            }
+            
+            if (!provider) {
+                showStatus('Please connect MetaMask first before changing Pandora address', 'error')
+                return
+            }
+            
+            try {
+                // Reinitialize PandoraService with new address
+                pandoraService = new PandoraService(provider, newAddress)
+                showStatus(`PandoraService reinitialized with address: ${newAddress}`, 'success')
+            } catch (error) {
+                showStatus(`Failed to reinitialize PandoraService: ${error.message}`, 'error')
+            }
+        })
+
+        // List providers button handler
+        document.getElementById('listProvidersBtn').addEventListener('click', async () => {
+            try {
+                if (!pandoraService) {
+                    showStatus('Please connect your wallet first', 'error')
+                    return
+                }
+
+                const providersDiv = document.getElementById('providersStatus')
+                providersDiv.textContent = 'Loading approved providers...'
+                providersDiv.className = 'status info'
+                providersDiv.style.display = 'block'
+
+                const providers = await pandoraService.getAllApprovedProviders()
+                
+                if (providers.length === 0) {
+                    providersDiv.textContent = 'No approved storage providers found'
+                    return
+                }
+
+                let message = `Found ${providers.length} approved storage provider(s):\n\n`
+                providers.forEach((provider, index) => {
+                    message += `${index + 1}. ${provider.owner}\n`
+                    message += `   PDP URL: ${provider.pdpUrl}\n`
+                    message += `   Retrieval URL: ${provider.pieceRetrievalUrl}\n`
+                    message += `   Registered: Block ${provider.registeredAt}\n`
+                    message += `   Approved: Block ${provider.approvedAt}\n\n`
+                })
+
+                providersDiv.textContent = message
+                providersDiv.className = 'status success'
+            } catch (error) {
+                console.error('Error listing providers:', error)
+                const providersDiv = document.getElementById('providersStatus')
+                providersDiv.textContent = `Error: ${error.message}`
+                providersDiv.className = 'status error'
+                providersDiv.style.display = 'block'
+            }
+        })
+
+        // Monitor transaction button handler
+        document.getElementById('monitorTxBtn').addEventListener('click', async () => {
+            try {
+                const txHash = document.getElementById('monitorTxHash').value.trim()
+                if (!txHash) {
+                    showStatus('Please enter a transaction hash', 'error')
+                    return
+                }
+
+                if (!pandoraService) {
+                    showStatus('Please connect your wallet first', 'error')
+                    return
+                }
+
+                const pdpEndpoint = document.getElementById('pdpEndpoint').value
+                if (!pdpEndpoint) {
+                    showStatus('Please enter a PDP server endpoint', 'error')
+                    return
+                }
+
+                showStatus('Checking transaction status...', 'info')
+
+                const pandoraAddress = document.getElementById('pandoraAddress').value
+                const authHelper = new PDPAuthHelper(pandoraAddress, connectedSigner, currentNetwork === 'mainnet' ? 314 : 314159)
+                const pdpServer = new PDPServer(authHelper, pdpEndpoint, pdpEndpoint)
+
+                const comprehensiveStatus = await pandoraService.getComprehensiveProofSetStatus(txHash, pdpServer)
+
+                // Build detailed status message
+                let statusMessage = `🔍 Transaction Status for ${txHash.slice(0, 10)}...:\n\n`
+
+                // Summary details
+                statusMessage += `📊 Overall Status: ${comprehensiveStatus.summary.isComplete ? 'Complete' : 'In Progress'}\n`
+                if (comprehensiveStatus.summary.error) {
+                    statusMessage += `❌ Error: ${comprehensiveStatus.summary.error}\n`
+                }
+                if (comprehensiveStatus.summary.proofSetId) {
+                    statusMessage += `✅ Proof Set ID: ${comprehensiveStatus.summary.proofSetId}\n`
+                }
+                statusMessage += `\n`
+
+                // Chain verification details
+                const chain = comprehensiveStatus.chainStatus
+                statusMessage += `⛓️ On-Chain Status:\n`
+                statusMessage += `  • Transaction Mined: ${chain.transactionMined ? '✅' : '⏳'}\n`
+                if (chain.transactionMined) {
+                    statusMessage += `  • Transaction Success: ${chain.transactionSuccess ? '✅' : '❌'}\n`
+                    statusMessage += `  • Block Number: ${chain.blockNumber ?? 'N/A'}\n`
+                    statusMessage += `  • Gas Used: ${chain.gasUsed != null ? chain.gasUsed.toString() : 'N/A'}\n`
+                }
+                if (chain.proofSetId != null) {
+                    statusMessage += `  • Proof Set Live: ${chain.proofSetLive ? '✅' : '❌'}\n`
+                }
+
+                const statusType = comprehensiveStatus.summary.error ? 'error' : (comprehensiveStatus.summary.isComplete ? 'success' : 'info')
+                showStatus(statusMessage, statusType)
+
+            } catch (error) {
+                console.error('Error checking transaction:', error)
+                showStatus(`Error: ${error.message}`, 'error')
+            }
+        })
+
+        // Initial setup
+        updateContractAddress() // Set initial Pandora address based on selected network
+        showStatus('Welcome to the PDP Testing Tool! Connect your MetaMask wallet to begin.', 'info')
+    </script>
+</body>
+</html>
