@@ -12,17 +12,18 @@ interface RateLimitOptions {
 
 class RateLimiter {
   private options: RateLimitOptions;
+  private requestCounts: Map<string, { count: number; resetTime: number }>;
 
-  constructor(options: RateLimitOptions) {
+  constructor(inputOptions: RateLimitOptions) {
     this.options = {
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      maxRequests: 100,
-      message: 'Too many requests, please try again later',
-      skipSuccessfulRequests: false,
-      skipFailedRequests: false,
-      keyGenerator: (req: Request) => req.ip || 'unknown',
-      ...options,
+      windowMs: inputOptions.windowMs || 15 * 60 * 1000, // 15 minutes
+      maxRequests: inputOptions.maxRequests || 100,
+      message: inputOptions.message || 'Too many requests from this IP, please try again later.',
+      skipSuccessfulRequests: inputOptions.skipSuccessfulRequests || false,
+      skipFailedRequests: inputOptions.skipFailedRequests || false,
+      keyGenerator: inputOptions.keyGenerator || ((req: Request) => req.ip || 'unknown'),
     };
+    this.requestCounts = new Map();
   }
 
   middleware() {
@@ -31,12 +32,31 @@ class RateLimiter {
         const key = this.options.keyGenerator!(req);
         const redisKey = `rate_limit:${key}`;
         
-        // Get Redis client
-        const redis = getRedisClient();
+        let count = 0;
+        let newCount = 1;
         
-        // Get current count
-        const current = await redis.get(redisKey);
-        const count = current ? parseInt(current, 10) : 0;
+        try {
+          // Try Redis first
+          const redis = getRedisClient();
+          const current = await redis.get(redisKey);
+          count = current ? parseInt(current, 10) : 0;
+          newCount = count + 1;
+          await redis.setex(redisKey, Math.ceil(this.options.windowMs / 1000), newCount.toString());
+        } catch (error) {
+          // Fallback to in-memory storage
+          const now = Date.now();
+          const record = this.requestCounts.get(key);
+          
+          if (record && now < record.resetTime) {
+            count = record.count;
+            newCount = count + 1;
+            this.requestCounts.set(key, { count: newCount, resetTime: record.resetTime });
+          } else {
+            count = 0;
+            newCount = 1;
+            this.requestCounts.set(key, { count: newCount, resetTime: now + this.options.windowMs });
+          }
+        }
         
         // Check if limit exceeded
         if (count >= this.options.maxRequests) {
@@ -51,10 +71,6 @@ class RateLimiter {
           });
           return;
         }
-        
-        // Increment counter
-        const newCount = count + 1;
-        await redis.setex(redisKey, Math.ceil(this.options.windowMs / 1000), newCount.toString());
         
         // Set rate limit headers
         res.set({

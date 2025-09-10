@@ -87,7 +87,7 @@ export const errorHandler = (
   }
 
   // Handle Filecoin/Synapse errors
-  if (message.includes('Synapse') || message.includes('Filecoin')) {
+  if (typeof message === 'string' && (message.includes('Synapse') || message.includes('Filecoin'))) {
     statusCode = 503;
     message = 'Storage service temporarily unavailable';
   }
@@ -178,3 +178,15 @@ export class ServiceUnavailableError extends AppError {
     this.name = 'ServiceUnavailableError';
   }
 }
+
+// 404 Not Found handler
+export const notFoundHandler = (req: Request, res: Response, _next: NextFunction): void => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.method} ${req.path} not found`,
+      timestamp: new Date().toISOString()
+    }
+  });
+};

@@ -33,6 +33,11 @@ export const getPool = (): Pool => {
   return pool;
 };
 
+export const getPostgresClient = async () => {
+  const pool = getPool();
+  return await pool.connect();
+};
+
 // Redis connection
 let redisClient: any;
 

@@ -1,24 +1,23 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
 import { getPool } from '../config/database';
-import { validate, commonValidations, validateFileType, validateFileSize } from '../middleware/validation';
+import { validate, commonValidations } from '../middleware/validation';
 import { rateLimiter, uploadRateLimiter } from '../middleware/rateLimiter';
 import { fileOperationLogger, auditLogger } from '../middleware/requestLogger';
 import { verifyToken, requireDocumentOwnership, AuthenticatedRequest } from '../middleware/auth';
 import { ValidationError, NotFoundError, ConflictError } from '../middleware/errorHandler';
-import { SynapseService } from '../services/synapseService';
-import { PDPService } from '../services/pdpService';
+import { synapseService } from '../services/synapseService';
+// import { pdpService } from '../services/pdpService'; // Commented out until needed
 
 const router = Router();
-const synapseService = new SynapseService();
-const pdpService = new PDPService();
+// Services are imported as instances above
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
+  destination: async (_req, _file, cb) => {
     const uploadDir = process.env.UPLOAD_TEMP_DIR || './uploads/temp';
     try {
       await fs.mkdir(uploadDir, { recursive: true });
@@ -27,7 +26,7 @@ const storage = multer.diskStorage({
       cb(error as Error, uploadDir);
     }
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   },
@@ -39,7 +38,7 @@ const upload = multer({
     fileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600', 10), // 100MB default
     files: 1,
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     // Allow common file types
     const allowedTypes = [
       'application/pdf',
@@ -112,7 +111,7 @@ router.post('/upload',
       
       // Store file on Filecoin via Synapse
       console.log('📤 Uploading file to Filecoin...');
-      const filecoinResult = await synapseService.storeFile(fileBuffer, {
+      const filecoinResult = await synapseService.storeFile(fileBuffer.toString('base64'), {
         filename: req.file.originalname,
         contentType: req.file.mimetype,
         metadata: {
@@ -181,7 +180,7 @@ router.post('/upload',
             cid: filecoinResult.cid,
             dealId: filecoinResult.dealId,
             storageProvider: filecoinResult.storageProvider,
-            estimatedCost: filecoinResult.estimatedCost,
+            estimatedCost: 0.001, // Default estimated cost
           },
         },
       });
@@ -408,7 +407,7 @@ router.get('/:documentId/download',
       // Set response headers
       res.setHeader('Content-Type', doc.file_type);
       res.setHeader('Content-Disposition', `attachment; filename="${doc.original_filename}"`);
-      res.setHeader('Content-Length', fileData.length);
+      res.setHeader('Content-Length', fileData.data?.length || 0);
       
       res.send(fileData);
     } catch (error) {

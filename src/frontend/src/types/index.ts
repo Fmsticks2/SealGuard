@@ -27,6 +27,7 @@ export interface Document {
   userId: string
   filename: string
   originalName: string
+  name: string // Display name for the document
   mimeType: string
   size: number
   hash: string
@@ -36,6 +37,9 @@ export interface Document {
   verificationStatus: VerificationStatus
   uploadedAt: string
   lastVerifiedAt?: string
+  lastVerified?: string // Alternative property name used in components
+  storageProvider?: string // Filecoin storage provider
+  tags?: string[] // Document tags
   metadata?: DocumentMetadata
 }
 
@@ -51,6 +55,7 @@ export type VerificationStatus =
   | 'verified'
   | 'failed'
   | 'expired'
+  | 'verifying' // Added missing status used in components
 
 export interface DocumentMetadata {
   description?: string
@@ -87,12 +92,19 @@ export type DealStatus =
 export interface PDPChallenge {
   id: string
   documentId: string
-  challengeData: string
-  expectedResponse: string
+  documentName?: string // Document name for display
+  challengeType?: string // Type of challenge (random, scheduled, manual)
+  challengeData: string | any // Can be string or object with sectors, merkleRoot, etc.
+  expectedResponse?: string
   status: ChallengeStatus
   createdAt: string
   respondedAt?: string
+  completedAt?: string // When challenge was completed
   response?: string
+  responseTime?: number // Response time in milliseconds
+  blockNumber?: number // Blockchain block number
+  storageProvider?: string // Storage provider identifier
+  failureReason?: string // Reason for failure if applicable
 }
 
 export type ChallengeStatus = 
@@ -101,6 +113,8 @@ export type ChallengeStatus =
   | 'verified'
   | 'failed'
   | 'expired'
+  | 'completed' // Added missing status used in components
+  | 'in_progress' // Added missing status used in components
 
 export interface PDPVerification {
   id: string

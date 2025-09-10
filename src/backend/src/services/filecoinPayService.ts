@@ -92,7 +92,7 @@ class FilecoinPayService {
       };
     } catch (error) {
       console.error('❌ Failed to create payment:', error);
-      throw new Error(`Payment creation failed: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Payment creation failed: ${(error as any)?.response?.data?.message || (error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -143,7 +143,7 @@ class FilecoinPayService {
       return subscription;
     } catch (error) {
       console.error('❌ Failed to create subscription:', error);
-      throw new Error(`Subscription creation failed: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Subscription creation failed: ${(error as any)?.response?.data?.message || (error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -164,7 +164,7 @@ class FilecoinPayService {
       return response.data;
     } catch (error) {
       console.error('❌ Failed to get payment status:', error);
-      throw new Error(`Payment status check failed: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Payment status check failed: ${(error as any)?.response?.data?.message || (error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -190,7 +190,7 @@ class FilecoinPayService {
       return true;
     } catch (error) {
       console.error('❌ Failed to cancel payment:', error);
-      throw new Error(`Payment cancellation failed: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Payment cancellation failed: ${(error as any)?.response?.data?.message || (error instanceof Error ? error.message : String(error))}`);
     }
   }
 

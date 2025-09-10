@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import crypto from 'crypto';
+// import fs from 'fs';
+// import path from 'path';
 
 interface LogEntry {
   requestId: string;
@@ -17,7 +18,7 @@ interface LogEntry {
 
 // Generate unique request ID
 const generateRequestId = (): string => {
-  return crypto.randomBytes(16).toString('hex');
+  return require('crypto').randomBytes(16).toString('hex');
 };
 
 // Request logger middleware
@@ -57,7 +58,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
   
   // Override res.end to capture response details
   const originalEnd = res.end;
-  res.end = function(chunk?: any, encoding?: any, cb?: any) {
+  res.end = function(chunk?: any, encoding?: any, cb?: any): any {
     const duration = Date.now() - startTime;
     
     // Complete log entry
@@ -103,7 +104,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
     }
     
     // Call original end method
-    originalEnd.call(this, chunk, encoding, cb);
+    return originalEnd.call(this, chunk, encoding, cb);
   };
   
   next();
@@ -111,7 +112,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
 
 // Security logger for sensitive operations
 export const securityLogger = (operation: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const logEntry = {
       operation,
       requestId: req.headers['x-request-id'],
@@ -139,7 +140,7 @@ export const performanceLogger = (threshold: number = 1000) => {
     const startTime = Date.now();
     
     const originalEnd = res.end;
-    res.end = function(chunk?: any, encoding?: any, cb?: any) {
+    res.end = function(chunk?: any, encoding?: any, cb?: any): any {
       const duration = Date.now() - startTime;
       
       if (duration > threshold) {
@@ -155,7 +156,7 @@ export const performanceLogger = (threshold: number = 1000) => {
         });
       }
       
-      originalEnd.call(this, chunk, encoding, cb);
+      return originalEnd.call(this, chunk, encoding, cb);
     };
     
     next();
@@ -164,7 +165,7 @@ export const performanceLogger = (threshold: number = 1000) => {
 
 // File operation logger
 export const fileOperationLogger = (operation: 'upload' | 'download' | 'delete') => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const logEntry = {
       operation: `file_${operation}`,
       requestId: req.headers['x-request-id'],
@@ -183,7 +184,7 @@ export const fileOperationLogger = (operation: 'upload' | 'download' | 'delete')
 
 // Audit logger for compliance
 export const auditLogger = (action: string, resource: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const auditEntry = {
       action,
       resource,

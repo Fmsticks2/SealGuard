@@ -28,52 +28,74 @@ import toast from 'react-hot-toast'
 const mockDocuments: Document[] = [
   {
     id: '1',
+    userId: 'user1',
+    filename: 'contract_agreement_2024.pdf',
+    originalName: 'Contract_Agreement_2024.pdf',
     name: 'Contract_Agreement_2024.pdf',
     size: 2048576,
     mimeType: 'application/pdf',
-    uploadedAt: new Date('2024-01-15T10:30:00Z'),
+    hash: 'sha256:abc123',
+    uploadedAt: '2024-01-15T10:30:00Z',
     filecoinCid: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
     verificationStatus: 'verified',
-    lastVerified: new Date('2024-01-20T14:22:00Z'),
+    lastVerified: '2024-01-20T14:22:00Z',
+    lastVerifiedAt: '2024-01-20T14:22:00Z',
     storageProvider: 'f01234',
     dealId: 'deal123456',
+    status: 'stored',
     tags: ['contract', 'legal'],
   },
   {
     id: '2',
+    userId: 'user1',
+    filename: 'financial_report_q4.xlsx',
+    originalName: 'Financial_Report_Q4.xlsx',
     name: 'Financial_Report_Q4.xlsx',
     size: 5242880,
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    uploadedAt: new Date('2024-01-18T16:45:00Z'),
+    hash: 'sha256:def456',
+    uploadedAt: '2024-01-18T16:45:00Z',
     filecoinCid: 'bafybeihkoviema7g3gxyt6la7b7kbbv2dqfqt6qjrpd5yrwmhqx2h5rqm4',
     verificationStatus: 'pending',
     storageProvider: 'f05678',
     dealId: 'deal789012',
+    status: 'stored',
     tags: ['finance', 'report'],
   },
   {
     id: '3',
+    userId: 'user1',
+    filename: 'product_images.zip',
+    originalName: 'Product_Images.zip',
     name: 'Product_Images.zip',
     size: 15728640,
     mimeType: 'application/zip',
-    uploadedAt: new Date('2024-01-20T09:15:00Z'),
+    hash: 'sha256:ghi789',
+    uploadedAt: '2024-01-20T09:15:00Z',
     filecoinCid: 'bafybeif6guig6ceq2tpat6bqhf6fzqzjqzqzqzqzqzqzqzqzqzqzqzqzq',
     verificationStatus: 'failed',
-    lastVerified: new Date('2024-01-21T11:30:00Z'),
+    lastVerified: '2024-01-21T11:30:00Z',
+    lastVerifiedAt: '2024-01-21T11:30:00Z',
     storageProvider: 'f09876',
     dealId: 'deal345678',
+    status: 'stored',
     tags: ['images', 'product'],
   },
   {
     id: '4',
+    userId: 'user1',
+    filename: 'presentation_demo.pptx',
+    originalName: 'Presentation_Demo.pptx',
     name: 'Presentation_Demo.pptx',
     size: 8388608,
     mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    uploadedAt: new Date('2024-01-22T13:20:00Z'),
+    hash: 'sha256:jkl012',
+    uploadedAt: '2024-01-22T13:20:00Z',
     filecoinCid: 'bafybeigxyz123abc456def789ghi012jkl345mno678pqr901stu234vwx',
     verificationStatus: 'verifying',
     storageProvider: 'f01111',
     dealId: 'deal901234',
+    status: 'stored',
     tags: ['presentation'],
   },
 ]
@@ -214,12 +236,14 @@ export function DocumentLibrary() {
     
     // Simulate verification process
     setTimeout(() => {
+      const now = new Date().toISOString()
       setDocuments(prev => prev.map(doc => 
         doc.id === document.id 
           ? { 
               ...doc, 
               verificationStatus: 'verified' as VerificationStatus,
-              lastVerified: new Date()
+              lastVerified: now,
+              lastVerifiedAt: now
             }
           : doc
       ))
@@ -412,9 +436,9 @@ export function DocumentLibrary() {
                             {getStatusText(document.verificationStatus)}
                           </span>
                         </div>
-                        {document.lastVerified && (
+                        {document.lastVerifiedAt && (
                           <p className="text-xs text-gray-500 mt-1">
-                            Last verified {formatRelativeTime(document.lastVerified)}
+                            Last verified {formatRelativeTime(document.lastVerifiedAt)}
                           </p>
                         )}
                       </td>
@@ -431,7 +455,7 @@ export function DocumentLibrary() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-mono text-gray-900">
-                          {document.filecoinCid.substring(0, 20)}...
+                          {document.filecoinCid?.substring(0, 20)}...
                         </div>
                         <div className="text-xs text-gray-500">
                           Provider: {document.storageProvider}

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import { PDPChallenge, VerificationStatus } from '@/types'
+import { PDPChallenge, ChallengeStatus } from '@/types'
 import toast from 'react-hot-toast'
 
 // Mock data - replace with actual API calls
@@ -28,8 +28,8 @@ const mockChallenges: PDPChallenge[] = [
     documentName: 'Contract_Agreement_2024.pdf',
     challengeType: 'random',
     status: 'completed',
-    createdAt: new Date('2024-01-20T10:00:00Z'),
-    completedAt: new Date('2024-01-20T10:05:23Z'),
+    createdAt: '2024-01-20T10:00:00Z',
+    completedAt: '2024-01-20T10:05:23Z',
     blockNumber: 2845672,
     challengeData: {
       sectors: [1, 45, 89, 123, 200],
@@ -45,7 +45,7 @@ const mockChallenges: PDPChallenge[] = [
     documentName: 'Financial_Report_Q4.xlsx',
     challengeType: 'scheduled',
     status: 'pending',
-    createdAt: new Date('2024-01-22T14:30:00Z'),
+    createdAt: '2024-01-22T14:30:00Z',
     blockNumber: 2847891,
     challengeData: {
       sectors: [12, 67, 134, 189, 245],
@@ -59,8 +59,8 @@ const mockChallenges: PDPChallenge[] = [
     documentName: 'Product_Images.zip',
     challengeType: 'random',
     status: 'failed',
-    createdAt: new Date('2024-01-21T09:15:00Z'),
-    completedAt: new Date('2024-01-21T09:25:45Z'),
+    createdAt: '2024-01-21T09:15:00Z',
+    completedAt: '2024-01-21T09:25:45Z',
     blockNumber: 2846234,
     challengeData: {
       sectors: [23, 78, 156, 201, 267],
@@ -76,7 +76,7 @@ const mockChallenges: PDPChallenge[] = [
     documentName: 'Presentation_Demo.pptx',
     challengeType: 'manual',
     status: 'in_progress',
-    createdAt: new Date('2024-01-22T16:45:00Z'),
+    createdAt: '2024-01-22T16:45:00Z',
     blockNumber: 2848123,
     challengeData: {
       sectors: [34, 89, 167, 212, 278],
@@ -86,7 +86,7 @@ const mockChallenges: PDPChallenge[] = [
   },
 ]
 
-function getStatusIcon(status: VerificationStatus) {
+function getStatusIcon(status: ChallengeStatus) {
   switch (status) {
     case 'completed':
       return <CheckCircle className="h-5 w-5 text-green-600" />
@@ -101,7 +101,7 @@ function getStatusIcon(status: VerificationStatus) {
   }
 }
 
-function getStatusText(status: VerificationStatus) {
+function getStatusText(status: ChallengeStatus) {
   switch (status) {
     case 'completed':
       return 'Completed'
@@ -116,7 +116,7 @@ function getStatusText(status: VerificationStatus) {
   }
 }
 
-function getStatusColor(status: VerificationStatus) {
+function getStatusColor(status: ChallengeStatus) {
   switch (status) {
     case 'completed':
       return 'bg-green-100 text-green-800'
@@ -147,7 +147,7 @@ function getChallengeTypeColor(type: string) {
 export function VerificationDashboard() {
   const [challenges, setChallenges] = useState<PDPChallenge[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | VerificationStatus>('all')
+  const [filter, setFilter] = useState<'all' | ChallengeStatus>('all')
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d')
 
   useEffect(() => {
@@ -184,10 +184,12 @@ export function VerificationDashboard() {
     completed: challenges.filter(c => c.status === 'completed').length,
     failed: challenges.filter(c => c.status === 'failed').length,
     pending: challenges.filter(c => c.status === 'pending' || c.status === 'in_progress').length,
-    avgResponseTime: challenges
-      .filter(c => c.responseTime)
-      .reduce((acc, c) => acc + (c.responseTime || 0), 0) / 
-      challenges.filter(c => c.responseTime).length || 0,
+    avgResponseTime: (() => {
+      const challengesWithResponseTime = challenges.filter(c => c.responseTime)
+      return challengesWithResponseTime.length > 0 
+        ? challengesWithResponseTime.reduce((acc, c) => acc + (c.responseTime || 0), 0) / challengesWithResponseTime.length
+        : 0
+    })(),
   }
 
   const successRate = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0
@@ -200,7 +202,7 @@ export function VerificationDashboard() {
   const handleRetryChallenge = (challengeId: string) => {
     setChallenges(prev => prev.map(c => 
       c.id === challengeId 
-        ? { ...c, status: 'in_progress' as VerificationStatus }
+        ? { ...c, status: 'in_progress' as ChallengeStatus }
         : c
     ))
     toast.success('Challenge retry initiated')
@@ -211,8 +213,8 @@ export function VerificationDashboard() {
         c.id === challengeId 
           ? { 
               ...c, 
-              status: 'completed' as VerificationStatus,
-              completedAt: new Date(),
+              status: 'completed' as ChallengeStatus,
+              completedAt: new Date().toISOString(),
               responseTime: Math.floor(Math.random() * 500) + 200
             }
           : c
@@ -308,7 +310,7 @@ export function VerificationDashboard() {
             <label className="text-sm font-medium text-gray-700">Status:</label>
             <select
               value={filter}
-              onChange={(e) => setFilter(e.target.value as 'all' | VerificationStatus)}
+              onChange={(e) => setFilter(e.target.value as 'all' | ChallengeStatus)}
               className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
@@ -359,7 +361,7 @@ export function VerificationDashboard() {
                       <h3 className="text-lg font-medium text-gray-900">
                         {challenge.documentName}
                       </h3>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getChallengeTypeColor(challenge.challengeType)}`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getChallengeTypeColor(challenge.challengeType || 'unknown')}`}>
                         {challenge.challengeType}
                       </span>
                     </div>
@@ -372,7 +374,7 @@ export function VerificationDashboard() {
                       
                       <div className="flex items-center space-x-2">
                         <Hash className="h-4 w-4" />
-                        <span>Block: {challenge.blockNumber.toLocaleString()}</span>
+                        <span>Block: {challenge.blockNumber?.toLocaleString() || 'N/A'}</span>
                       </div>
                       
                       <div className="flex items-center space-x-2">
@@ -404,15 +406,24 @@ export function VerificationDashboard() {
                     <div className="mt-4 bg-gray-50 rounded-lg p-3">
                       <h4 className="text-sm font-medium text-gray-900 mb-2">Challenge Details</h4>
                       <div className="space-y-2 text-xs text-gray-600">
-                        <div>
-                          <span className="font-medium">Sectors:</span> [{challenge.challengeData.sectors.join(', ')}]
-                        </div>
-                        <div className="break-all">
-                          <span className="font-medium">Merkle Root:</span> {challenge.challengeData.merkleRoot}
-                        </div>
-                        {challenge.challengeData.proof && (
+                        {typeof challenge.challengeData === 'object' && challenge.challengeData.sectors && (
+                          <div>
+                            <span className="font-medium">Sectors:</span> [{challenge.challengeData.sectors.join(', ')}]
+                          </div>
+                        )}
+                        {typeof challenge.challengeData === 'object' && challenge.challengeData.merkleRoot && (
+                          <div className="break-all">
+                            <span className="font-medium">Merkle Root:</span> {challenge.challengeData.merkleRoot}
+                          </div>
+                        )}
+                        {typeof challenge.challengeData === 'object' && challenge.challengeData.proof && (
                           <div className="break-all">
                             <span className="font-medium">Proof:</span> {challenge.challengeData.proof}
+                          </div>
+                        )}
+                        {typeof challenge.challengeData === 'string' && (
+                          <div className="break-all">
+                            <span className="font-medium">Challenge Data:</span> {challenge.challengeData}
                           </div>
                         )}
                       </div>

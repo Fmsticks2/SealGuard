@@ -61,7 +61,7 @@ class PDPService {
       const proofHash = this.hashProof(proof);
 
       // Store proof using Synapse SDK
-      const synapseProofHash = await synapseService.generatePDPProof(cid);
+      await synapseService.generatePDPProof(cid);
 
       // Save verification proof to database
       await this.saveVerificationProof(documentId, 'PDP', proofHash, true);
@@ -79,7 +79,7 @@ class PDPService {
       // Save failed verification to database
       await this.saveVerificationProof(documentId, 'PDP', '', false);
       
-      throw new Error(`PDP proof generation failed: ${error.message}`);
+      throw new Error(`PDP challenge generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -128,7 +128,7 @@ class PDPService {
       // Save failed verification to database
       await this.saveVerificationProof(documentId, 'PDP_VERIFY', proofHash, false);
       
-      throw new Error(`PDP proof verification failed: ${error.message}`);
+      throw new Error(`PDP proof verification failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -239,7 +239,7 @@ class PDPService {
   /**
    * Perform local verification of proof
    */
-  private async performLocalVerification(fileData: Buffer, proofHash: string): Promise<boolean> {
+  private async performLocalVerification(fileData: Buffer, _proofHash: string): Promise<boolean> {
     try {
       // This is a simplified local verification
       // In a real implementation, you would reconstruct the proof and verify it

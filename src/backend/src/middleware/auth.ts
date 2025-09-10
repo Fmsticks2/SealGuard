@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getPostgresClient } from '../config/database';
-import { AuthenticationError, AuthorizationError } from './errorHandler';
+import { AuthorizationError, AuthenticationError } from './errorHandler';
 
 interface JWTPayload {
   userId: string;
@@ -22,7 +22,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 // JWT token verification
-export const verifyToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+export const verifyToken = async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -41,7 +41,8 @@ export const verifyToken = async (req: AuthenticatedRequest, res: Response, next
     
     // Get user from database
     const client = getPostgresClient();
-    const userResult = await client.query(
+    const actualClient = await client;
+    const userResult = await actualClient.query(
       'SELECT id, email, role, created_at, updated_at FROM users WHERE id = $1 AND active = true',
       [decoded.userId]
     );
@@ -72,7 +73,7 @@ export const verifyToken = async (req: AuthenticatedRequest, res: Response, next
 };
 
 // Optional authentication (doesn't fail if no token)
-export const optionalAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+export const optionalAuth = async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
@@ -92,7 +93,8 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
       
       // Get user from database
       const client = getPostgresClient();
-      const userResult = await client.query(
+      const actualClient = await client;
+      const userResult = await actualClient.query(
         'SELECT id, email, role, created_at, updated_at FROM users WHERE id = $1 AND active = true',
         [decoded.userId]
       );
@@ -119,7 +121,7 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
 
 // Role-based authorization
 export const requireRole = (roles: string | string[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  return (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       return next(new AuthenticationError('Authentication required'));
     }
@@ -141,7 +143,7 @@ export const requireAdmin = requireRole('admin');
 export const requireUser = requireRole(['admin', 'user']);
 
 // API key authentication
-export const verifyApiKey = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const verifyApiKey = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
     const apiKey = req.headers['x-api-key'] as string;
     
@@ -151,7 +153,8 @@ export const verifyApiKey = async (req: Request, res: Response, next: NextFuncti
     
     // Get API key from database
     const client = getPostgresClient();
-    const apiKeyResult = await client.query(
+    const actualClient = await client;
+    const apiKeyResult = await actualClient.query(
       `SELECT ak.*, u.id as user_id, u.email, u.role 
        FROM api_keys ak 
        JOIN users u ON ak.user_id = u.id 
@@ -171,7 +174,8 @@ export const verifyApiKey = async (req: Request, res: Response, next: NextFuncti
     }
     
     // Update last used timestamp
-    await client.query(
+    const actualClient2 = await client;
+    await actualClient2.query(
       'UPDATE api_keys SET last_used_at = NOW(), usage_count = usage_count + 1 WHERE id = $1',
       [keyData.id]
     );
@@ -193,7 +197,7 @@ export const verifyApiKey = async (req: Request, res: Response, next: NextFuncti
 
 // Resource ownership check
 export const requireOwnership = (resourceIdParam: string = 'id', resourceTable: string) => {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
         return next(new AuthenticationError('Authentication required'));
@@ -211,7 +215,8 @@ export const requireOwnership = (resourceIdParam: string = 'id', resourceTable: 
       
       // Check if user owns the resource
       const client = getPostgresClient();
-      const result = await client.query(
+      const actualClient = await client;
+      const result = await actualClient.query(
         `SELECT id FROM ${resourceTable} WHERE id = $1 AND user_id = $2`,
         [resourceId, req.user.id]
       );
@@ -247,7 +252,7 @@ export const generateToken = (user: { id: string; email: string; role: string })
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
     issuer: 'sealguard',
     audience: 'sealguard-users',
-  });
+  } as jwt.SignOptions);
 };
 
 // Refresh token validation
@@ -255,7 +260,8 @@ export const verifyRefreshToken = async (refreshToken: string): Promise<{ userId
   const client = getPostgresClient();
   
   // Check if refresh token exists and is valid
-  const result = await client.query(
+  const actualClient = await client;
+  const result = await actualClient.query(
     'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW() AND revoked = false',
     [refreshToken]
   );
@@ -271,7 +277,8 @@ export const verifyRefreshToken = async (refreshToken: string): Promise<{ userId
 export const revokeRefreshToken = async (refreshToken: string): Promise<void> => {
   const client = getPostgresClient();
   
-  await client.query(
+  const actualClient2 = await client;
+  await actualClient2.query(
     'UPDATE refresh_tokens SET revoked = true WHERE token = $1',
     [refreshToken]
   );

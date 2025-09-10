@@ -82,7 +82,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(frontendPath));
   
   // Handle client-side routing
-  app.get('*', (req, res) => {
+  app.get('*', (_req, res) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 }
