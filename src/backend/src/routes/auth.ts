@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { getPostgresClient } from '../config/database';
+import { getPool } from '../config/database';
 import { validate, commonValidations } from '../middleware/validation';
 import { rateLimiter, strictRateLimiter } from '../middleware/rateLimiter';
 import { securityLogger } from '../middleware/requestLogger';
@@ -19,7 +19,8 @@ router.post('/register',
     try {
       const { email, password, firstName, lastName } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       
       // Check if user already exists
       const existingUser = await client.query(
@@ -95,7 +96,8 @@ router.post('/login',
     try {
       const { email, password } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       
       // Get user with password
       const userResult = await client.query(
@@ -181,7 +183,8 @@ router.post('/refresh',
       // Verify refresh token
       const { userId } = await verifyRefreshToken(refreshToken);
       
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       
       // Get user
       const userResult = await client.query(
@@ -270,34 +273,39 @@ router.get('/profile',
   verifyToken,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
-      const userResult = await client.query(
-        'SELECT id, email, first_name, last_name, role, created_at, updated_at, last_login_at FROM users WHERE id = $1',
-        [req.user!.id]
-      );
-      
-      if (userResult.rows.length === 0) {
-        throw new AuthenticationError('User not found');
-      }
-      
-      const user = userResult.rows[0];
+      try {
+        const userResult = await client.query(
+          'SELECT id, email, first_name, last_name, role, created_at, updated_at, last_login_at FROM users WHERE id = $1',
+          [req.user!.id]
+        );
+        
+        if (userResult.rows.length === 0) {
+          throw new AuthenticationError('User not found');
+        }
+        
+        const user = userResult.rows[0];
       
       res.json({
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            role: user.role,
-            createdAt: user.created_at,
-            updatedAt: user.updated_at,
-            lastLoginAt: user.last_login_at,
+          success: true,
+          data: {
+            user: {
+              id: user.id,
+              email: user.email,
+              firstName: user.first_name,
+              lastName: user.last_name,
+              role: user.role,
+              createdAt: user.created_at,
+              updatedAt: user.updated_at,
+              lastLoginAt: user.last_login_at,
+            },
           },
-        },
-      });
+        });
+      } finally {
+        client.release();
+      }
     } catch (error) {
       next(error);
     }
@@ -317,7 +325,8 @@ router.put('/profile',
     try {
       const { firstName, lastName } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Build update query dynamically
       const updates: string[] = [];
@@ -386,7 +395,8 @@ router.put('/password',
     try {
       const { currentPassword, newPassword } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       
       // Get current password hash
       const userResult = await client.query(

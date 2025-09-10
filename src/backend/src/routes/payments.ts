@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { getPostgresClient } from '../config/database';
+import { getPool } from '../config/database';
 import { validate, commonValidations } from '../middleware/validation';
 import { rateLimiter, paymentRateLimiter } from '../middleware/rateLimiter';
 import { securityLogger, auditLogger } from '../middleware/requestLogger';
@@ -53,7 +53,8 @@ router.post('/storage',
       const payment = await filecoinPayService.createPayment(paymentData);
       
       // Save payment to database
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       await client.query(
         `INSERT INTO payment_transactions (
           user_id, payment_id, payment_type, amount, currency,
@@ -111,7 +112,8 @@ router.post('/verification',
     try {
       const { documentId, challengeCount, currency = 'FIL', description } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       
       // Verify document ownership
       const documentResult = await client.query(
@@ -203,7 +205,8 @@ router.get('/:paymentId/status',
     try {
       const { paymentId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+    const client = await pool.connect();
       
       // Get payment from database
       const paymentResult = await client.query(
@@ -269,7 +272,8 @@ router.get('/history',
       const status = req.query.status as string;
       const offset = (page - 1) * limit;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Build query conditions
       const conditions = ['user_id = $1'];
@@ -355,7 +359,8 @@ router.delete('/:paymentId',
     try {
       const { paymentId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get payment from database
       const paymentResult = await client.query(
@@ -481,7 +486,8 @@ router.get('/stats',
   rateLimiter,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get payment statistics
       const statsResult = await client.query(

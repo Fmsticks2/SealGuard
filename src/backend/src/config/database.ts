@@ -39,7 +39,7 @@ let redisClient: any;
 export const connectRedis = async (): Promise<void> => {
   try {
     redisClient = createClient({
-      url: process.env.REDIS_URL,
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
     });
 
     redisClient.on('error', (err: Error) => {

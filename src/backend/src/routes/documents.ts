@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
-import { getPostgresClient } from '../config/database';
+import { getPool } from '../config/database';
 import { validate, commonValidations, validateFileType, validateFileSize } from '../middleware/validation';
 import { rateLimiter, uploadRateLimiter } from '../middleware/rateLimiter';
 import { fileOperationLogger, auditLogger } from '../middleware/requestLogger';
@@ -97,7 +97,8 @@ router.post('/upload',
       const fileBuffer = await fs.readFile(tempFilePath);
       const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Check if file already exists for this user
       const existingDoc = await client.query(
@@ -214,7 +215,8 @@ router.get('/',
       
       const offset = (page - 1) * limit;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Build query conditions
       const conditions = ['user_id = $1'];
@@ -305,7 +307,8 @@ router.get('/:documentId',
     try {
       const { documentId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       const documentResult = await client.query(
         `SELECT 
@@ -384,7 +387,8 @@ router.get('/:documentId/download',
     try {
       const { documentId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       const documentResult = await client.query(
         'SELECT original_filename, file_type, filecoin_cid FROM documents WHERE id = $1',
@@ -431,7 +435,8 @@ router.put('/:documentId',
       const { documentId } = req.params;
       const { description, tags } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Build update query
       const updates: string[] = [];
@@ -501,7 +506,8 @@ router.delete('/:documentId',
     try {
       const { documentId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get document info before deletion
       const documentResult = await client.query(

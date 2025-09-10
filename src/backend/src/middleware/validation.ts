@@ -160,7 +160,7 @@ const validateData = (data: any, rules: ValidationRule[], prefix: string = ''): 
 
 // Main validation middleware
 export const validate = (schema: ValidationSchema) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const errors: string[] = [];
     
     // Validate body
@@ -264,7 +264,7 @@ export const commonValidations = {
 
 // File type validation
 export const validateFileType = (allowedTypes: string[]) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const fileType = req.body?.fileType || req.headers['content-type'];
     
     if (!fileType) {
@@ -281,7 +281,7 @@ export const validateFileType = (allowedTypes: string[]) => {
 
 // File size validation
 export const validateFileSize = (maxSize: number) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const fileSize = req.body?.fileSize || parseInt(req.headers['content-length'] || '0', 10);
     
     if (!fileSize) {

@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { getPostgresClient } from '../config/database';
+import { getPool } from '../config/database';
 import { validate, commonValidations } from '../middleware/validation';
 import { rateLimiter, strictRateLimiter } from '../middleware/rateLimiter';
 import { auditLogger } from '../middleware/requestLogger';
@@ -25,7 +25,8 @@ router.post('/pdp/:documentId',
       const { documentId } = req.params;
       const { challengeCount = 10 } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get document info
       const documentResult = await client.query(
@@ -95,7 +96,8 @@ router.get('/pdp/:documentId/status',
     try {
       const { documentId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get latest verification
       const verificationResult = await client.query(
@@ -160,7 +162,8 @@ router.get('/pdp/:documentId/history',
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
       const offset = (page - 1) * limit;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get total count
       const countResult = await client.query(
@@ -230,7 +233,8 @@ router.post('/pdp/:documentId/verify',
       const { documentId } = req.params;
       const { verificationId, proofData } = req.body;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get verification record
       const verificationResult = await client.query(
@@ -290,7 +294,8 @@ router.get('/stats',
   rateLimiter,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get document and verification stats
       const statsResult = await client.query(
@@ -373,7 +378,8 @@ router.get('/network-stats',
       // Get Synapse network stats
       const networkStats = await synapseService.getNetworkStats();
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Get platform-wide verification stats
       const platformStats = await client.query(
@@ -439,7 +445,8 @@ router.delete('/pdp/:documentId/:verificationId',
     try {
       const { documentId, verificationId } = req.params;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Check if verification exists and is pending
       const verificationResult = await client.query(

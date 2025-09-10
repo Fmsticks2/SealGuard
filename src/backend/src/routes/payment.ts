@@ -1,5 +1,5 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { getPostgresClient } from '../config/database';
+import { getPool } from '../config/database';
 import { validate, commonValidations } from '../middleware/validation';
 import { rateLimiter, strictRateLimiter } from '../middleware/rateLimiter';
 import { auditLogger } from '../middleware/requestLogger';
@@ -81,7 +81,8 @@ router.post('/create-intent',
       const { documentId, amount, duration } = req.body;
       const userId = req.user!.id;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       // Verify document ownership
       const documentResult = await client.query(
@@ -158,7 +159,8 @@ router.get('/intent/:paymentIntentId',
       const { paymentIntentId } = req.params;
       const userId = req.user!.id;
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       const result = await client.query(
         `SELECT 
@@ -242,7 +244,8 @@ router.get('/history',
       const { page = 1, limit = 20 } = req.query;
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
       
-      const client = getPostgresClient();
+      const pool = getPool();
+      const client = await pool.connect();
       
       const [paymentsResult, countResult] = await Promise.all([
         client.query(
@@ -319,7 +322,8 @@ function verifyWebhookSignature(payload: Buffer, signature: string): boolean {
 async function handlePaymentCompleted(data: any) {
   const { reference: paymentIntentId, amount, transaction_hash } = data;
   
-  const client = getPostgresClient();
+  const pool = getPool();
+      const client = await pool.connect();
   
   try {
     await client.query('BEGIN');
@@ -368,7 +372,8 @@ async function handlePaymentCompleted(data: any) {
 async function handlePaymentFailed(data: any) {
   const { reference: paymentIntentId, reason } = data;
   
-  const client = getPostgresClient();
+  const pool = getPool();
+      const client = await pool.connect();
   
   await client.query(
     `UPDATE payment_intents 

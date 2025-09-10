@@ -20,7 +20,7 @@ class RateLimiter {
       message: 'Too many requests, please try again later',
       skipSuccessfulRequests: false,
       skipFailedRequests: false,
-      keyGenerator: (req: Request) => req.ip,
+      keyGenerator: (req: Request) => req.ip || 'unknown',
       ...options,
     };
   }
@@ -94,7 +94,7 @@ export const uploadRateLimiter = new RateLimiter({
   message: 'Upload limit exceeded, please try again later',
   keyGenerator: (req: Request) => {
     // Rate limit by user ID if authenticated, otherwise by IP
-    return (req as any).user?.id || req.ip;
+    return (req as any).user?.id || req.ip || 'unknown';
   },
 }).middleware();
 
@@ -104,7 +104,7 @@ export const paymentRateLimiter = new RateLimiter({
   maxRequests: 5,
   message: 'Payment attempt limit exceeded, please try again later',
   keyGenerator: (req: Request) => {
-    return (req as any).user?.id || req.ip;
+    return (req as any).user?.id || req.ip || 'unknown';
   },
 }).middleware();
 
@@ -115,7 +115,7 @@ export const apiKeyRateLimiter = new RateLimiter({
   message: 'API rate limit exceeded',
   keyGenerator: (req: Request) => {
     const apiKey = req.headers['x-api-key'] as string;
-    return apiKey || req.ip;
+    return apiKey || req.ip || 'unknown';
   },
 }).middleware();
 
