@@ -2,8 +2,7 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title SealGuardRegistry
@@ -11,9 +10,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
  * Manages document registration, verification proofs, and access control
  */
 contract SealGuardRegistry is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
-    Counters.Counter private _documentIds;
+    uint256 private _documentIds;
     
     struct Document {
         uint256 id;
@@ -76,6 +73,8 @@ contract SealGuardRegistry is Ownable, ReentrancyGuard {
         _;
     }
     
+    constructor(address initialOwner) Ownable(initialOwner) {}
+    
     /**
      * @dev Register a new document on Filecoin
      * @param filecoinCID The Filecoin CID of the stored document
@@ -95,8 +94,8 @@ contract SealGuardRegistry is Ownable, ReentrancyGuard {
         require(fileHash != bytes32(0), "Invalid file hash");
         require(hashToDocumentId[fileHash] == 0, "Document already exists");
         
-        _documentIds.increment();
-        uint256 documentId = _documentIds.current();
+        _documentIds++;
+        uint256 documentId = _documentIds;
         
         documents[documentId] = Document({
             id: documentId,
@@ -235,7 +234,7 @@ contract SealGuardRegistry is Ownable, ReentrancyGuard {
      * @dev Get total number of documents
      */
     function getTotalDocuments() external view returns (uint256) {
-        return _documentIds.current();
+        return _documentIds;
     }
     
     /**

@@ -57,7 +57,7 @@ const upload = multer({
 });
 
 // IPFS upload service using ipfs-http-client
-import { create as createIPFS } from 'ipfs-http-client';
+const { create: createIPFS } = require('ipfs-http-client');
 
 class IPFSService {
   private ipfs: any;

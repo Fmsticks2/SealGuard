@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title SealGuardAccessControl
@@ -67,11 +67,7 @@ contract SealGuardAccessControl is AccessControl, ReentrancyGuard {
         address indexed member
     );
     
-    event RoleGranted(
-        bytes32 indexed role,
-        address indexed account,
-        address indexed sender
-    );
+
     
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);

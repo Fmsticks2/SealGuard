@@ -93,8 +93,8 @@ class ContractService {
       // In production, this would load from a config file or environment
       // For now, we'll use placeholder addresses
       this.contractAddresses = {
-        registry: process.env.REACT_APP_REGISTRY_CONTRACT || '0x0000000000000000000000000000000000000000',
-        accessControl: process.env.REACT_APP_ACCESS_CONTROL_CONTRACT || '0x0000000000000000000000000000000000000000'
+        registry: process.env.NEXT_PUBLIC_REGISTRY_CONTRACT || '0x0000000000000000000000000000000000000000',
+        accessControl: process.env.NEXT_PUBLIC_ACCESS_CONTROL_CONTRACT || '0x0000000000000000000000000000000000000000'
       };
       
       await this.initializeContracts();
@@ -105,7 +105,7 @@ class ContractService {
 
   private async initializeContracts() {
     const provider = web3AuthService.getProvider();
-    const signer = web3AuthService.getSigner();
+    const signer = await web3AuthService.getSigner();
     
     if (!provider || !this.contractAddresses) return;
 

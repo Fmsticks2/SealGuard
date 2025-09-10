@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { createWeb3Modal } from '@web3modal/ethers/react';
+import { createAppKit } from '@reown/appkit/react';
+import { EthersAdapter } from '@reown/appkit-adapter-ethers';
 import { ethers } from 'ethers';
 import { SiweMessage } from 'siwe';
 
@@ -46,20 +47,18 @@ const chains = [
   }
 ];
 
-// Create Web3Modal instance
-const web3Modal = createWeb3Modal({
-  ethersConfig: {
-    metadata,
-    defaultChain: chains[0],
-    enableEIP6963: true,
-    enableInjected: true,
-    enableCoinbase: true,
-    rpcUrl: 'https://cloudflare-eth.com'
-  },
-  chains,
+// Create Reown AppKit instance
+const ethersAdapter = new EthersAdapter();
+
+const appKit = createAppKit({
+  adapters: [ethersAdapter],
+  networks: chains,
+  metadata,
   projectId,
-  enableAnalytics: true,
-  enableOnramp: true
+  features: {
+    analytics: true,
+    onramp: true
+  }
 });
 
 // Types
@@ -67,6 +66,7 @@ interface User {
   address: string;
   chainId: number;
   isConnected: boolean;
+  ens?: string;
 }
 
 interface Session {
@@ -86,6 +86,8 @@ interface Web3ContextType {
   isConnecting: boolean;
   isSigningIn: boolean;
   isAuthenticated: boolean;
+  isConnected: boolean;
+  isLoading: boolean;
   error: string | null;
   
   // Actions
@@ -112,9 +114,11 @@ export const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = !!(user?.isConnected && session);
+  const isConnected = !!user?.isConnected;
 
   // Initialize from localStorage
   useEffect(() => {
@@ -137,26 +141,34 @@ export const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // Listen to Web3Modal events
+  // Listen to Reown AppKit events
   useEffect(() => {
-    const unsubscribe = web3Modal.subscribeProvider(({ provider: walletProvider, address, chainId, isConnected }) => {
+    setIsLoading(true);
+    const unsubscribe = appKit.subscribeProvider(({ provider: walletProvider, address, chainId, isConnected }) => {
       if (isConnected && address && chainId) {
         const ethersProvider = new ethers.BrowserProvider(walletProvider);
         setProvider(ethersProvider);
-        setUser({
-          address,
-          chainId,
-          isConnected
-        });
         
-        // Get signer
-        ethersProvider.getSigner().then(setSigner).catch(console.error);
+        ethersProvider.getSigner().then(signer => {
+          setSigner(signer);
+          setUser({
+            address,
+            chainId,
+            isConnected: true
+          });
+          setIsLoading(false);
+        }).catch(error => {
+          console.error('Failed to get signer:', error);
+          setError('Failed to get signer');
+          setIsLoading(false);
+        });
       } else {
-        setUser(null);
         setProvider(null);
         setSigner(null);
+        setUser(null);
         setSession(null);
         localStorage.removeItem('sealguard_session');
+        setIsLoading(false);
       }
     });
 
@@ -169,7 +181,7 @@ export const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
     try {
       setIsConnecting(true);
       setError(null);
-      await web3Modal.open();
+      await appKit.open();
     } catch (error: any) {
       console.error('Failed to connect wallet:', error);
       setError(error.message || 'Failed to connect wallet');
@@ -234,7 +246,7 @@ export const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
 
   const disconnect = async () => {
     try {
-      await web3Modal.disconnect();
+      await appKit.disconnect();
       setUser(null);
       setSession(null);
       setProvider(null);
@@ -277,6 +289,8 @@ export const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
     isConnecting,
     isSigningIn,
     isAuthenticated,
+    isConnected,
+    isLoading,
     error,
     
     // Actions

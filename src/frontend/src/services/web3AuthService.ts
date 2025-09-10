@@ -1,4 +1,5 @@
-import { createWeb3Modal, defaultConfig } from '@web3modal/ethers/react';
+import { createAppKit } from '@reown/appkit/react';
+import { EthersAdapter } from '@reown/appkit-adapter-ethers';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
 import { SiweMessage } from 'siwe';
 
@@ -43,21 +44,17 @@ const chains = [
   }
 ];
 
-const ethersConfig = defaultConfig({
-  metadata,
-  enableEIP6963: true,
-  enableInjected: true,
-  enableCoinbase: true,
-  rpcUrl: 'https://cloudflare-eth.com',
-  defaultChainId: 1
-});
+// Create Reown AppKit instance
+const ethersAdapter = new EthersAdapter();
 
-// Create Web3Modal instance
-export const web3Modal = createWeb3Modal({
-  ethersConfig,
-  chains,
+export const appKit = createAppKit({
+  adapters: [ethersAdapter],
+  networks: chains,
+  metadata,
   projectId,
-  enableAnalytics: true
+  features: {
+    analytics: true
+  }
 });
 
 export interface AuthUser {
@@ -90,7 +87,7 @@ class Web3AuthService {
 
   private initializeListeners() {
     // Listen for account changes
-    web3Modal.subscribeProvider(({ provider, address, chainId, isConnected }) => {
+    appKit.subscribeProvider(({ provider, address, chainId, isConnected }) => {
       if (provider && address && isConnected) {
         this.provider = new BrowserProvider(provider);
         this.currentUser = {
@@ -105,7 +102,7 @@ class Web3AuthService {
     });
   }
 
-  private async getSigner(): Promise<JsonRpcSigner | null> {
+  async getSigner(): Promise<JsonRpcSigner | null> {
     if (!this.provider) return null;
     
     try {
@@ -150,7 +147,7 @@ class Web3AuthService {
 
   async connectWallet(): Promise<AuthUser | null> {
     try {
-      await web3Modal.open();
+      await appKit.open();
       
       // Wait for connection
       return new Promise((resolve) => {
@@ -220,7 +217,7 @@ class Web3AuthService {
 
   async disconnect(): Promise<void> {
     try {
-      await web3Modal.disconnect();
+      await appKit.disconnect();
       this.provider = null;
       this.signer = null;
       this.currentUser = null;
@@ -251,7 +248,7 @@ class Web3AuthService {
     return this.provider;
   }
 
-  getSigner(): JsonRpcSigner | null {
+  getCachedSigner(): JsonRpcSigner | null {
     return this.signer;
   }
 

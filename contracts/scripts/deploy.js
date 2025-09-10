@@ -19,7 +19,7 @@ async function main() {
   // Deploy SealGuardRegistry
   console.log("\nDeploying SealGuardRegistry...");
   const SealGuardRegistry = await ethers.getContractFactory("SealGuardRegistry");
-  const registry = await SealGuardRegistry.deploy();
+  const registry = await SealGuardRegistry.deploy(deployer.address);
   await registry.waitForDeployment();
   const registryAddress = await registry.getAddress();
   console.log("SealGuardRegistry deployed to:", registryAddress);

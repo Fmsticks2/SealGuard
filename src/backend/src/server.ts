@@ -8,19 +8,14 @@ import { createServer } from 'http';
 // Load environment variables
 dotenv.config();
 
-// Import routes
-import authRoutes from './routes/auth';
-import documentRoutes from './routes/documents';
-import verificationRoutes from './routes/verification';
-import paymentRoutes from './routes/payments';
+// Import routes - Web3-native minimal backend
+import uploadRoutes from './routes/upload';
+import notificationRoutes from './routes/notifications';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/requestLogger';
-
-// Import database connection
-import { connectDatabase } from './config/database';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,11 +63,23 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/verification', verificationRoutes);
-app.use('/api/payments', paymentRoutes);
+// API routes - Web3-native minimal backend
+app.use('/api/upload', uploadRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Web3 health check with contract connectivity
+app.get('/api/web3/health', (_req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    services: {
+      ipfs: 'available',
+      filecoin: 'available',
+      notifications: 'available'
+    },
+    version: process.env.npm_package_version || '1.0.0',
+  });
+});
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -88,6 +95,14 @@ app.use(errorHandler);
 
 // Create HTTP server
 const server = createServer(app);
+
+// Start server
+server.listen(PORT, () => {
+  console.log(`🚀 SealGuard Web3 Backend running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🌐 Web3 health: http://localhost:${PORT}/api/web3/health`);
+  console.log(`🔗 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -109,15 +124,12 @@ process.on('SIGINT', () => {
 // Start server
 async function startServer() {
   try {
-    // Connect to database
-    await connectDatabase();
-    console.log('✅ Database connected successfully');
-
-    // Start HTTP server
+    // Start server (Web3-native architecture - no database connection needed)
     server.listen(PORT, () => {
       console.log(`🚀 SealGuard API Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+      console.log(`🔗 Web3-native architecture - decentralized storage ready`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { getRedisClient } from '../config/database';
 
 interface RateLimitOptions {
   windowMs: number;
@@ -30,32 +29,22 @@ class RateLimiter {
     return async (req: Request, res: Response, next: NextFunction) => {
       try {
         const key = this.options.keyGenerator!(req);
-        const redisKey = `rate_limit:${key}`;
+        
+        // Use in-memory storage for Web3-native architecture
+        const now = Date.now();
+        const record = this.requestCounts.get(key);
         
         let count = 0;
         let newCount = 1;
         
-        try {
-          // Try Redis first
-          const redis = getRedisClient();
-          const current = await redis.get(redisKey);
-          count = current ? parseInt(current, 10) : 0;
+        if (record && now < record.resetTime) {
+          count = record.count;
           newCount = count + 1;
-          await redis.setex(redisKey, Math.ceil(this.options.windowMs / 1000), newCount.toString());
-        } catch (error) {
-          // Fallback to in-memory storage
-          const now = Date.now();
-          const record = this.requestCounts.get(key);
-          
-          if (record && now < record.resetTime) {
-            count = record.count;
-            newCount = count + 1;
-            this.requestCounts.set(key, { count: newCount, resetTime: record.resetTime });
-          } else {
-            count = 0;
-            newCount = 1;
-            this.requestCounts.set(key, { count: newCount, resetTime: now + this.options.windowMs });
-          }
+          this.requestCounts.set(key, { count: newCount, resetTime: record.resetTime });
+        } else {
+          count = 0;
+          newCount = 1;
+          this.requestCounts.set(key, { count: newCount, resetTime: now + this.options.windowMs });
         }
         
         // Check if limit exceeded
@@ -82,7 +71,7 @@ class RateLimiter {
         next();
       } catch (error) {
         console.error('Rate limiter error:', error);
-        // If Redis is down, allow the request to proceed
+        // If rate limiting fails, allow the request to proceed
         next();
       }
     };
