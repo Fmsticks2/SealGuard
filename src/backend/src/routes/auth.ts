@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getPostgresClient } from '../config/database';
 import { validate, commonValidations } from '../middleware/validation';
