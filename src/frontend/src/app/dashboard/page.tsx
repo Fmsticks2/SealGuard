@@ -2,24 +2,20 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/store/authStore'
+import { useWeb3Auth } from '@/hooks/useWeb3Auth'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview'
 
 export default function DashboardPage() {
-  const { user, isLoading, isAuthenticated, checkAuth } = useAuthStore()
+  const { user, isConnected, isAuthenticated, isLoading } = useWeb3Auth()
   const router = useRouter()
 
   useEffect(() => {
-    checkAuth()
-  }, [])
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && (!isConnected || !isAuthenticated)) {
       router.push('/login')
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isConnected, isAuthenticated, isLoading, router])
 
   if (isLoading) {
     return (
@@ -29,7 +25,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (!isAuthenticated || !user) {
+  if (!isConnected || !isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />

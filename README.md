@@ -130,112 +130,122 @@ Regulated industries face mounting pressure to maintain comprehensive, tamper-pr
 
 ### Feature Breakdown
 
-#### MVP Features (Wave 2)
-- **File Upload & Sealing**: Secure document upload with immediate Filecoin Warm Storage integration
-- **PDP Verification**: Proof of Data Possession verification for stored documents
-- **Basic Dashboard**: View uploaded files and verification status
-- **Integrity Proofs**: Generate cryptographic proofs of document integrity
-- **One-time Payments**: Filecoin Pay integration for pay-per-use model
+#### Core Web3 Features (Implemented)
+- **Wallet Authentication**: Secure wallet-based login with SIWE (Sign-in with Ethereum)
+- **IPFS File Storage**: Decentralized file upload and storage via IPFS network
+- **Smart Contract Registry**: On-chain document metadata and verification proofs
+- **Immutable Audit Trail**: Blockchain-based verification history with cryptographic proofs
+- **Decentralized Access Control**: Smart contract-based permissions and role management
 
-#### Advanced Features (Wave 3)
-- **Subscription Management**: Recurring billing via Filecoin Pay
-- **Advanced Dashboard**: Search, filter, export capabilities
-- **Role-Based Access**: Multi-user permissions and access controls
-- **Automated Alerts**: Notifications for verification status changes
-- **Bulk Operations**: Mass upload and verification capabilities
-- **API Integration**: RESTful API for enterprise system integration
+#### Advanced Web3 Features
+- **Multi-Chain Support**: Deploy across Ethereum, Polygon, and other EVM chains
+- **ENS Integration**: Human-readable names for wallet addresses
+- **Cross-Chain Verification**: Verify documents across multiple blockchain networks
+- **DAO Governance**: Decentralized governance for system upgrades and parameters
+- **Token-Gated Access**: NFT or token-based document access controls
+- **Decentralized Notifications**: IPFS-based notification system
 
-#### Enterprise Features (Wave 4)
-- **Mobile Responsiveness**: Full mobile application support
-- **Advanced Analytics**: Compliance reporting and trend analysis
-- **Custom Integrations**: White-label solutions for enterprise clients
-- **Regulatory Templates**: Pre-built compliance frameworks (HIPAA, SOX, GDPR)
-- **Audit Trail Export**: Formatted reports for regulatory submissions
-- **Enterprise SSO**: Integration with corporate identity providers
+#### Enterprise Web3 Features
+- **Custom Smart Contracts**: Tailored verification logic for specific industries
+- **Regulatory Compliance Modules**: On-chain compliance frameworks (HIPAA, SOX, GDPR)
+- **Bulk Operations**: Mass document registration and verification via smart contracts
+- **API Integration**: Web3 API for enterprise blockchain integration
+- **White-Label Solutions**: Customizable DApp deployment for enterprises
+- **Advanced Analytics**: On-chain data analysis and compliance reporting
 
 ---
 
 ## 4. Architecture Design
 
-### System Flow Description
+### Web3-Native System Flow
 
-1. **File Upload Pipeline**
-   - User uploads sensitive documents through web interface
-   - Files are encrypted client-side before transmission
-   - Metadata extracted and stored in application database
-   - Files queued for Filecoin storage processing
+1. **Wallet Authentication**
+   - User connects Web3 wallet (MetaMask, WalletConnect, etc.)
+   - SIWE (Sign-in with Ethereum) message signing for authentication
+   - No traditional passwords or centralized user accounts
+   - Wallet address becomes the user's unique identifier
 
-2. **Synapse SDK Integration**
-   - Synapse SDK handles Filecoin network interactions
-   - Manages storage provider selection and optimization
-   - Handles deal negotiation and storage verification
-   - Provides real-time status updates on storage operations
+2. **Decentralized File Upload**
+   - User uploads documents through Web3-enabled interface
+   - Files are uploaded directly to IPFS network
+   - Content Identifier (CID) generated for immutable addressing
+   - No centralized servers store actual file content
 
-3. **Filecoin Warm Storage + PDP Verification**
-   - Documents stored in Filecoin Warm Storage for cost-effective long-term retention
-   - Proof of Data Possession (PDP) generated for each stored file
-   - Continuous verification ensures data integrity over time
-   - Cryptographic proofs stored on-chain for immutable verification
+3. **Smart Contract Registration**
+   - Document metadata registered on blockchain via smart contract
+   - IPFS CID, file hash, and verification data stored on-chain
+   - Cryptographic proofs generated and stored immutably
+   - Access permissions managed through smart contract logic
 
-4. **Filecoin Pay Integration**
-   - Subscription management for recurring compliance services
-   - Pay-per-verification model for occasional users
-   - Automated billing based on storage and verification usage
-   - Enterprise pricing tiers with volume discounts
+4. **Blockchain Verification**
+   - Document integrity verified through on-chain cryptographic proofs
+   - Verification history permanently recorded on blockchain
+   - No centralized database dependencies
+   - Tamper-proof audit trail with mathematical certainty
 
-5. **Dashboard & Proof History**
-   - Real-time status of all uploaded documents
-   - Historical verification proofs with timestamps
-   - Downloadable compliance reports
-   - Integration APIs for enterprise systems
+5. **Decentralized Dashboard**
+   - Real-time blockchain data retrieval and display
+   - IPFS file access through content addressing
+   - Smart contract event monitoring for notifications
+   - Direct blockchain interaction without intermediary APIs
 
-### Architecture Diagram (ASCII)
+### Web3-Native Architecture Diagram (ASCII)
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
-│   Web Client    │────│   API Gateway    │────│   Backend Services  │
-│  (React/Next)   │    │   (Express.js)   │    │    (Node.js/Go)     │
+│   Web3 Client   │────│   Web3 Wallet    │────│   Smart Contracts   │
+│  (React/Next)   │    │  (MetaMask/WC)   │    │    (Solidity)       │
 └─────────────────┘    └──────────────────┘    └─────────────────────┘
-                                │                          │
-                                │                          │
-                       ┌────────▼──────────┐    ┌─────────▼──────────┐
-                       │   Database        │    │  Filecoin Onchain │
-                       │  (PostgreSQL)     │    │      Cloud         │
-                       └───────────────────┘    └────────────────────┘
-                                                          │
-                                ┌─────────────────────────┼─────────────────────────┐
-                                │                         │                         │
-                       ┌────────▼──────────┐    ┌────────▼──────────┐    ┌────────▼──────────┐
-                       │  Synapse SDK      │    │  Warm Storage     │    │  Filecoin Pay     │
-                       │  (Integration)    │    │  (PDP Proofs)     │    │  (Billing)        │
-                       └───────────────────┘    └───────────────────┘    └───────────────────┘
+         │                       │                          │
+         │                       │                          │
+         ▼                       ▼                          ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
+│   IPFS Network  │    │   Blockchain     │    │  Minimal Backend    │
+│  (File Storage) │    │  (Ethereum/L2)   │    │  (Upload Proxy)     │
+└─────────────────┘    └──────────────────┘    └─────────────────────┘
+         │                       │                          │
+         └───────────────────────┼──────────────────────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │   Decentralized Data    │
+                    │   • IPFS Content IDs    │
+                    │   • On-chain Metadata   │
+                    │   • Cryptographic Proofs│
+                    └─────────────────────────┘
 ```
 
-### Core Tech Stack
+### Web3-Native Tech Stack
 
 **Frontend:**
-- React.js with Next.js for SSR and optimal performance
-- TypeScript for type safety
+- React.js with Next.js for Web3-enabled SSR
+- TypeScript for type safety and smart contract interactions
 - Tailwind CSS for responsive design
-- React Query for state management
+- Wagmi/Viem for Ethereum interactions
+- Reown (WalletConnect) for wallet connectivity
 
-**Backend:**
-- Node.js with Express.js for API services
-- PostgreSQL for application data and metadata
-- Redis for caching and session management
-- JWT for authentication and authorization
+**Smart Contracts:**
+- Solidity for smart contract development
+- Hardhat for development and testing framework
+- OpenZeppelin for secure contract libraries
+- Ethereum/Layer 2 networks for deployment
 
-**Filecoin Integration:**
-- Synapse SDK for Filecoin network interactions
-- Filecoin Warm Storage for cost-effective long-term storage
-- PDP (Proof of Data Possession) for integrity verification
-- Filecoin Pay for subscription and payment processing
+**Decentralized Storage:**
+- IPFS for distributed file storage
+- Pinata or Web3.Storage for IPFS pinning services
+- Content addressing via IPFS CIDs
+- Client-side encryption before IPFS upload
+
+**Minimal Backend:**
+- Node.js with Express.js for upload proxy only
+- No traditional database dependencies
+- IPFS HTTP client for file operations
+- WebSocket for real-time notifications
 
 **Infrastructure:**
-- Docker containers for deployment
-- AWS/GCP for hosting and CDN
-- GitHub Actions for CI/CD
-- Monitoring with DataDog/New Relic
+- Docker containers for minimal backend services
+- Decentralized hosting (IPFS, Fleek, etc.)
+- GitHub Actions for CI/CD and contract deployment
+- Blockchain monitoring with The Graph Protocol
 
 ---
 

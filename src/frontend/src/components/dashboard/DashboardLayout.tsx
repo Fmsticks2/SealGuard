@@ -16,7 +16,7 @@ import {
   User,
   ChevronDown,
 } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
+import { useWeb3Auth } from '@/hooks/useWeb3Auth'
 import { cn } from '@/lib/utils'
 
 interface DashboardLayoutProps {
@@ -31,15 +31,19 @@ const navigation = [
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, logout } = useAuthStore()
+  const { user, disconnect } = useWeb3Auth()
   const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await disconnect()
     router.push('/')
+  }
+
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
   return (
@@ -109,9 +113,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <div className="ml-3 flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.firstName} {user?.lastName}
+                  {user?.address ? formatAddress(user.address) : 'Wallet'}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.ens || 'Connected Wallet'}
+                </p>
               </div>
             </div>
             <button
@@ -119,7 +125,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               className="mt-3 w-full flex items-center px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md transition-colors"
             >
               <LogOut className="mr-3 h-4 w-4" />
-              Sign out
+              Disconnect
             </button>
           </div>
         </div>
@@ -164,12 +170,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </button>
 
                   {userMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
                       <div className="px-4 py-2 border-b border-gray-200">
                         <p className="text-sm font-medium text-gray-900">
-                          {user?.firstName} {user?.lastName}
+                          {user?.address ? formatAddress(user.address) : 'Wallet'}
                         </p>
-                        <p className="text-xs text-gray-500">{user?.email}</p>
+                        <p className="text-xs text-gray-500">
+                          {user?.ens || 'Connected Wallet'}
+                        </p>
+                        {user?.address && (
+                          <p className="text-xs text-gray-400 mt-1 font-mono">
+                            {user.address}
+                          </p>
+                        )}
                       </div>
                       <Link
                         href="/dashboard/settings"
@@ -185,7 +198,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        Sign out
+                        Disconnect Wallet
                       </button>
                     </div>
                   )}

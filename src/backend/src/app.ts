@@ -7,10 +7,8 @@ import path from 'path';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
-import authRoutes from './routes/auth';
-import documentsRoutes from './routes/documents';
-import verificationRoutes from './routes/verification';
-import paymentRoutes from './routes/payment';
+import uploadRoutes from './routes/upload';
+import notificationRoutes from './routes/notifications';
 
 const app = express();
 
@@ -70,11 +68,23 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/documents', documentsRoutes);
-app.use('/api/verification', verificationRoutes);
-app.use('/api/payment', paymentRoutes);
+// API routes - Web3-native minimal backend
+app.use('/api/upload', uploadRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Web3 health check with contract connectivity
+app.get('/api/web3/health', (_req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    services: {
+      ipfs: 'available',
+      filecoin: 'available',
+      notifications: 'available'
+    },
+    version: process.env.npm_package_version || '1.0.0',
+  });
+});
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

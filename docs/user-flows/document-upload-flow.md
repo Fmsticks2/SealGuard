@@ -1,65 +1,70 @@
-# Document Upload & Verification Flow
+# Web3-Native Document Upload & Verification Flow
 
 ## Overview
 
-This document outlines the complete user journey for uploading documents to SealGuard and obtaining cryptographic verification through Filecoin Onchain Cloud integration.
+This document outlines the complete user journey for uploading documents to SealGuard and obtaining cryptographic verification through Web3-native blockchain and IPFS integration.
 
-## Primary User Flow: Document Upload to Verification
+## Primary User Flow: Web3 Document Upload to Verification
 
-### Step 1: Authentication & Dashboard Access
+### Step 1: Web3 Wallet Authentication
 
 **User Actions:**
-1. Navigate to SealGuard web application
-2. Enter credentials (email/password or SSO)
-3. Complete two-factor authentication if enabled
-4. Access main dashboard
+1. Navigate to SealGuard Web3 application
+2. Click "Connect Wallet" button
+3. Select preferred wallet (MetaMask, WalletConnect, etc.)
+4. Sign SIWE (Sign-in with Ethereum) message for authentication
 
 **System Actions:**
-- Validate credentials against user database
-- Generate JWT token for session management
-- Load user-specific dashboard with current storage metrics
-- Display recent activity and document status
+- Detect available Web3 wallets
+- Generate SIWE authentication message
+- Verify wallet signature cryptographically
+- Load user dashboard based on wallet address
+- Fetch on-chain document registry for user
 
 **UI Elements:**
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ SealGuard - Secure Login                                            │
+│ SealGuard - Web3 Authentication                                    │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│   Email: [_________________________]                                │
-│   Password: [_________________________]                             │
+│   🔗 Connect your Web3 wallet to get started                      │
 │                                                                     │
-│   [ ] Remember me    [Forgot Password?]                            │
+│   [🦊 MetaMask]     [🔗 WalletConnect]                            │
 │                                                                     │
-│   [Sign In with SSO] [Sign In]                                     │
+│   [🏦 Coinbase]     [🌈 Rainbow]                                  │
+│                                                                     │
+│   Status: Wallet detected ✅                                       │
+│   Address: 0x742d...4e2f                                           │
+│                                                                     │
+│   [Sign Message to Authenticate]                                    │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 2: File Selection & Upload Initiation
+### Step 2: Decentralized File Upload Initiation
 
 **User Actions:**
 1. Click "Upload New Document" button
 2. Select files via drag-and-drop or file browser
-3. Review file details and metadata
-4. Confirm upload initiation
+3. Review file details and estimated gas costs
+4. Confirm upload and smart contract registration
 
 **System Actions:**
 - Validate file types and sizes
-- Generate unique document IDs
-- Create database records with "pending" status
-- Initialize client-side encryption
+- Generate cryptographic file hashes
+- Prepare IPFS upload and smart contract transaction
+- Initialize client-side encryption before IPFS upload
 
 **UI Elements:**
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Upload Documents                                        [X Close]   │
+│ Upload to IPFS & Register on Blockchain            [X Close]       │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │                                                             │   │
 │   │     📁 Drag and drop files here                            │   │
-│   │        or click to browse                                   │   │
+│   │        Files will be encrypted and stored on IPFS          │   │
 │   │                                                             │   │
 │   │     Supported: PDF, DOCX, TXT, CSV, JPG, PNG              │   │
 │   │     Max size: 100MB per file                               │   │
@@ -67,110 +72,121 @@ This document outlines the complete user journey for uploading documents to Seal
 │   └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │   Selected Files:                                                   │
-│   • Medical_Record_001.pdf (2.1 MB)                               │
-│   • Transaction_Log.csv (15.3 MB)                                 │
+│   • Medical_Record_001.pdf (2.1 MB) - Hash: 7d865e...             │
+│   • Transaction_Log.csv (15.3 MB) - Hash: a1b2c3...               │
 │                                                                     │
-│   [Cancel] [Upload Documents]                                       │
+│   💰 Estimated Gas Cost: 0.0045 ETH (~$12.50)                     │
+│   🌐 Network: Ethereum Mainnet                                     │
+│                                                                     │
+│   [Cancel] [Upload to IPFS & Register]                             │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 3: Client-Side Processing
+### Step 3: IPFS Upload & Blockchain Transaction
 
 **User Actions:**
-- Monitor upload progress
+- Monitor IPFS upload progress
+- Confirm blockchain transaction in wallet
 - View real-time status updates
 
 **System Actions:**
 1. **File Encryption:** AES-256 encryption applied client-side
-2. **Hash Generation:** SHA-256 hash calculated for integrity verification
-3. **Metadata Extraction:** File type, size, creation date captured
-4. **Chunked Upload:** Large files split into chunks for reliable transfer
+2. **IPFS Upload:** Encrypted file uploaded to IPFS network
+3. **CID Generation:** Content Identifier (CID) generated by IPFS
+4. **Smart Contract Call:** Register document metadata on blockchain
+5. **Transaction Confirmation:** Wait for blockchain confirmation
 
 **Progress Indicators:**
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Upload Progress                                                     │
+│ IPFS Upload & Blockchain Registration Progress                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │ Medical_Record_001.pdf                                              │
 │ ████████████████████████████████████████████████████ 100%          │
-│ ✓ Encrypted and uploaded                                            │
+│ ✓ Encrypted and uploaded to IPFS                                   │
+│ 📋 CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55f     │
 │                                                                     │
 │ Transaction_Log.csv                                                 │
 │ ████████████████████████████████████████████████████ 100%          │
-│ ✓ Encrypted and uploaded                                            │
+│ ✓ Encrypted and uploaded to IPFS                                   │
+│ 📋 CID: bafybeihdwdcefgh4dqkjv67uowdwcj6axjqbbyrd5hohs6lw4kej8dprgm │
 │                                                                     │
-│ Status: Processing for Filecoin storage...                         │
+│ 🔗 Blockchain Transaction: 0x1a2b3c4d5e6f... (Pending confirmation) │
+│ ⏳ Status: Waiting for 3 block confirmations...                    │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 4: Filecoin Storage Processing
+### Step 4: Blockchain Confirmation & Event Processing
 
 **User Actions:**
-- Monitor storage status in dashboard
-- Receive notifications when processing completes
+- Monitor transaction status in dashboard
+- Receive notifications when blockchain confirms registration
 
 **System Actions:**
-1. **Synapse SDK Integration:** Files queued for Filecoin storage
-2. **Storage Provider Selection:** Optimal providers chosen based on cost/performance
-3. **Deal Negotiation:** Storage deals negotiated with selected providers
-4. **Data Sealing:** Files sealed into Filecoin sectors
-5. **CID Generation:** Content Identifier (CID) generated for each file
+1. **Transaction Mining:** Blockchain miners process the transaction
+2. **Block Confirmation:** Transaction included in confirmed block
+3. **Event Emission:** Smart contract emits DocumentRegistered event
+4. **Index Update:** Frontend updates document registry from blockchain
+5. **Notification Trigger:** User notified of successful registration
 
 **Status Updates:**
 ```
-Processing Stages:
-1. Queued for Storage      ⏳ (0-2 minutes)
-2. Provider Selection      ⏳ (2-5 minutes)
-3. Deal Negotiation        ⏳ (5-15 minutes)
-4. Data Sealing           ⏳ (15-45 minutes)
-5. Storage Confirmation    ✅ (45-60 minutes)
+Blockchain Processing Stages:
+1. Transaction Submitted   ⏳ (0-30 seconds)
+2. Pending in Mempool     ⏳ (30 seconds - 2 minutes)
+3. Block Inclusion        ⏳ (2-5 minutes)
+4. Confirmation (3 blocks) ⏳ (5-15 minutes)
+5. Registration Complete   ✅ (15-20 minutes)
 ```
 
-### Step 5: PDP Proof Generation
+### Step 5: Smart Contract Verification & On-Chain Proof
 
 **User Actions:**
-- View proof generation status
-- Access generated proofs
+- View blockchain registration status
+- Access on-chain verification proofs
+- Download cryptographic certificates
 
 **System Actions:**
-1. **Proof of Data Possession:** Cryptographic proof generated
-2. **Blockchain Recording:** Proof hash recorded on Filecoin blockchain
-3. **Verification Certificate:** Digital certificate created
-4. **Database Update:** Document status updated to "sealed"
+1. **Smart Contract Storage:** Document metadata permanently stored on-chain
+2. **Cryptographic Proof:** Hash-based integrity proof generated
+3. **Immutable Record:** Tamper-proof blockchain record created
+4. **Event Indexing:** Document registry updated with new entry
 
-**Proof Details:**
+**On-Chain Proof Details:**
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Verification Proof - Medical_Record_001.pdf                        │
+│ Blockchain Verification Proof - Medical_Record_001.pdf             │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │ Document Hash: 7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3bb │
-│ Filecoin CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55f │
-│ Proof Hash: a1b2c3d4e5f6789012345678901234567890abcdef1234567890ab │
+│ IPFS CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55f     │
+│ Block Number: 18,945,123                                            │
+│ Transaction: 0x1a2b3c4d5e6f789012345678901234567890abcdef123456789  │
 │ Timestamp: 2024-01-15 14:30:22 UTC                                 │
-│ Storage Providers: 3 confirmed                                      │
+│ Gas Used: 85,432                                                    │
+│ Owner: 0x742d35Cc6634C0532925a3b8D4e2f                             │
 │                                                                     │
-│ [Download Certificate] [Verify Integrity] [View Details]           │
+│ [View on Etherscan] [Verify Integrity] [Download Certificate]      │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 6: Verification & Access
+### Step 6: Decentralized Verification & Access
 
 **User Actions:**
-1. View document in library
-2. Verify current integrity status
-3. Download verification certificates
-4. Generate audit reports
+1. View document in Web3 dashboard
+2. Verify integrity through blockchain queries
+3. Access files via IPFS gateway
+4. Generate on-chain audit reports
 
 **System Actions:**
-- Real-time integrity verification
-- Audit trail generation
-- Certificate formatting
-- Report compilation
+- Query smart contract for document metadata
+- Verify IPFS content against on-chain hashes
+- Generate cryptographic integrity proofs
+- Compile blockchain-based audit trails
 
 ## Alternative Flows
 

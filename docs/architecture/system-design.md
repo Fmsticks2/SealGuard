@@ -1,174 +1,229 @@
-# SealGuard System Architecture Design
+# SealGuard Web3-Native System Architecture Design
 
 ## Overview
 
-SealGuard is built as a modern, cloud-native SaaS platform leveraging Filecoin Onchain Cloud for immutable storage and verification. The architecture follows microservices principles with clear separation of concerns.
+SealGuard has been restructured as a **Web3-native decentralized application** that leverages blockchain technology for immutable document verification. The architecture eliminates traditional centralized components in favor of smart contracts, IPFS storage, and wallet-based authentication.
 
 ## High-Level Architecture
 
 ### Component Overview
 
-1. **Frontend Layer** (React/Next.js)
-   - User interface for document management
-   - Real-time status updates
-   - Responsive design for mobile/desktop
+1. **Frontend Layer** (React/Next.js + Web3)
+   - Wallet-based authentication (Reown/WalletConnect)
+   - Direct smart contract interactions
+   - IPFS file retrieval and display
+   - Real-time blockchain event monitoring
 
-2. **API Gateway** (Express.js)
-   - Request routing and load balancing
-   - Authentication and authorization
-   - Rate limiting and security
+2. **Smart Contract Layer** (Ethereum/Polygon)
+   - Document registry and metadata storage
+   - Access control and permissions
+   - Verification proof storage
+   - Event emission for notifications
 
-3. **Backend Services** (Node.js/Go)
-   - Document processing service
-   - Verification service
-   - User management service
-   - Billing service
+3. **Minimal Backend Services** (Node.js)
+   - IPFS upload proxy service
+   - Blockchain event notifications
+   - No database dependencies
+   - Stateless and horizontally scalable
 
-4. **Database Layer** (PostgreSQL + Redis)
-   - Application data and metadata
-   - Session management and caching
+4. **Decentralized Storage** (IPFS/Filecoin)
+   - Immutable file storage
+   - Content addressing via CID
+   - Distributed and censorship-resistant
+   - No single point of failure
 
-5. **Filecoin Integration Layer**
-   - Synapse SDK integration
-   - Warm Storage management
-   - PDP proof generation
-   - Payment processing
+5. **Web3 Infrastructure**
+   - Ethereum/Polygon blockchain
+   - IPFS network for file storage
+   - Wallet providers for authentication
+   - Blockchain indexing services
 
 ## Detailed Component Design
 
-### Frontend Architecture
+### Frontend Architecture (Web3-Native)
 
 ```
 Components/
 ├── Dashboard/
-│   ├── FileUpload.tsx
-│   ├── DocumentLibrary.tsx
-│   ├── VerificationStatus.tsx
-│   └── AuditReports.tsx
-├── Auth/
-│   ├── Login.tsx
-│   ├── Register.tsx
-│   └── PasswordReset.tsx
+│   ├── FileUpload.tsx          # IPFS upload with smart contract integration
+│   ├── DocumentLibrary.tsx     # Displays documents from blockchain events
+│   ├── VerificationStatus.tsx  # Real-time contract state monitoring
+│   └── AuditReports.tsx        # On-chain verification history
+├── Web3/
+│   ├── WalletConnect.tsx       # Reown wallet integration
+│   ├── ContractInteraction.tsx # Smart contract method calls
+│   ├── TransactionStatus.tsx   # Transaction monitoring
+│   └── NetworkSwitcher.tsx     # Multi-chain support
 ├── Shared/
-│   ├── Header.tsx
-│   ├── Sidebar.tsx
-│   └── LoadingSpinner.tsx
+│   ├── Header.tsx              # Wallet connection status
+│   ├── Sidebar.tsx             # Web3-native navigation
+│   └── LoadingSpinner.tsx      # Transaction pending states
 └── Utils/
-    ├── api.ts
-    ├── auth.ts
-    └── filecoin.ts
+    ├── web3.ts                 # Web3 provider setup
+    ├── contracts.ts            # Smart contract ABIs and addresses
+    ├── ipfs.ts                 # IPFS client utilities
+    └── wallet.ts               # Wallet connection management
 ```
 
-### Backend Service Architecture
+### Backend Service Architecture (Minimal)
 
 ```
 Services/
-├── DocumentService/
-│   ├── upload.js
-│   ├── metadata.js
-│   └── validation.js
-├── VerificationService/
-│   ├── pdp-proof.js
-│   ├── integrity-check.js
-│   └── audit-trail.js
-├── UserService/
-│   ├── authentication.js
-│   ├── authorization.js
-│   └── profile.js
-└── BillingService/
-    ├── subscription.js
-    ├── usage-tracking.js
-    └── filecoin-pay.js
+├── UploadService/
+│   ├── ipfs-upload.js          # IPFS file upload proxy
+│   ├── file-validation.js      # File type and size validation
+│   └── temp-cleanup.js         # Temporary file management
+├── NotificationService/
+│   ├── blockchain-events.js    # Listen to smart contract events
+│   ├── webhook-handler.js      # Process blockchain webhooks
+│   └── notification-store.js   # In-memory notification storage
+└── HealthService/
+    ├── ipfs-health.js          # IPFS node connectivity check
+    ├── blockchain-health.js    # RPC endpoint health check
+    └── system-metrics.js       # Basic system monitoring
 ```
 
-### Database Schema
+### Smart Contract Schema
 
-#### Users Table
-```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    organization_id UUID,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
+#### DocumentRegistry Contract
+```solidity
+struct Document {
+    string ipfsHash;          // IPFS CID for file content
+    bytes32 fileHash;         // SHA-256 hash of file content
+    string filename;          // Original filename
+    uint256 fileSize;         // File size in bytes
+    address owner;            // Document owner's wallet address
+    uint256 timestamp;        // Upload timestamp
+    bool isVerified;          // Verification status
+    string[] tags;            // Document tags/categories
+}
+
+mapping(bytes32 => Document) public documents;
+mapping(address => bytes32[]) public userDocuments;
+mapping(bytes32 => VerificationProof[]) public documentProofs;
 ```
 
-#### Documents Table
-```sql
-CREATE TABLE documents (
-    id UUID PRIMARY KEY,
-    user_id UUID REFERENCES users(id),
-    filename VARCHAR(255) NOT NULL,
-    file_size BIGINT NOT NULL,
-    file_type VARCHAR(100) NOT NULL,
-    file_hash VARCHAR(64) NOT NULL,
-    filecoin_cid VARCHAR(255),
-    storage_status VARCHAR(50) DEFAULT 'pending',
-    verification_status VARCHAR(50) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
+#### AccessControl Contract
+```solidity
+struct AccessPermission {
+    address grantee;          // Address granted access
+    bytes32 documentId;       // Document identifier
+    uint8 permissionLevel;    // 1=read, 2=verify, 3=admin
+    uint256 expiresAt;        // Permission expiration
+    bool isActive;            // Permission status
+}
+
+mapping(bytes32 => AccessPermission[]) public documentPermissions;
+mapping(address => mapping(bytes32 => uint8)) public userPermissions;
 ```
 
-#### Verification_Proofs Table
-```sql
-CREATE TABLE verification_proofs (
-    id UUID PRIMARY KEY,
-    document_id UUID REFERENCES documents(id),
-    proof_hash VARCHAR(64) NOT NULL,
-    verification_timestamp TIMESTAMP NOT NULL,
-    proof_data JSONB NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+#### VerificationProof Structure
+```solidity
+struct VerificationProof {
+    bytes32 documentId;       // Reference to document
+    bytes32 proofHash;        // Cryptographic proof hash
+    address verifier;         // Address that performed verification
+    uint256 timestamp;        // Verification timestamp
+    string proofType;         // Type of verification performed
+    bool isValid;             // Verification result
+}
 ```
 
-## Filecoin Integration Details
+## Web3 Integration Details
 
-### Synapse SDK Integration
+### IPFS Storage Integration
 
 ```javascript
-// Filecoin storage service
-class FilecoinStorageService {
+// Web3-native IPFS storage service
+class IPFSStorageService {
   constructor() {
-    this.synapse = new SynapseSDK({
-      apiKey: process.env.SYNAPSE_API_KEY,
-      network: 'mainnet'
+    this.ipfs = createIPFS({
+      host: process.env.IPFS_HOST || 'localhost',
+      port: parseInt(process.env.IPFS_PORT || '5001', 10),
+      protocol: process.env.IPFS_PROTOCOL || 'http'
     });
   }
 
   async storeDocument(fileBuffer, metadata) {
     try {
-      // Upload to Warm Storage
-      const result = await this.synapse.warmStorage.store({
-        data: fileBuffer,
-        metadata: metadata,
-        redundancy: 3 // Number of storage providers
+      // Upload to IPFS network
+      const result = await this.ipfs.add({
+        content: fileBuffer,
+        path: metadata.filename
       });
 
       return {
-        cid: result.cid,
-        dealId: result.dealId,
-        storageProviders: result.providers
+        cid: result.cid.toString(),
+        size: result.size,
+        path: result.path
       };
     } catch (error) {
-      throw new Error(`Storage failed: ${error.message}`);
+      throw new Error(`IPFS storage failed: ${error.message}`);
     }
   }
 
-  async generatePDPProof(cid) {
+  async retrieveDocument(cid) {
     try {
-      const proof = await this.synapse.pdp.generateProof(cid);
+      const chunks = [];
+      for await (const chunk of this.ipfs.cat(cid)) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    } catch (error) {
+      throw new Error(`IPFS retrieval failed: ${error.message}`);
+    }
+  }
+
+  async pinDocument(cid) {
+    try {
+      await this.ipfs.pin.add(cid);
+      return { pinned: true, cid };
+    } catch (error) {
+      throw new Error(`IPFS pinning failed: ${error.message}`);
+    }
+  }
+}
+
+// Smart contract integration
+class DocumentRegistryService {
+  constructor(web3Provider, contractAddress) {
+    this.web3 = new Web3(web3Provider);
+    this.contract = new this.web3.eth.Contract(DocumentRegistryABI, contractAddress);
+  }
+
+  async registerDocument(documentData, userAddress) {
+    try {
+      const tx = await this.contract.methods.registerDocument(
+        documentData.ipfsHash,
+        documentData.fileHash,
+        documentData.filename,
+        documentData.fileSize,
+        documentData.tags
+      ).send({ from: userAddress });
+
       return {
-        proofHash: proof.hash,
-        timestamp: proof.timestamp,
-        verification: proof.verification
+        transactionHash: tx.transactionHash,
+        documentId: tx.events.DocumentRegistered.returnValues.documentId,
+        blockNumber: tx.blockNumber
       };
     } catch (error) {
-      throw new Error(`PDP proof generation failed: ${error.message}`);
+      throw new Error(`Document registration failed: ${error.message}`);
+    }
+  }
+
+  async verifyDocument(documentId, userAddress) {
+    try {
+      const tx = await this.contract.methods.verifyDocument(
+        documentId
+      ).send({ from: userAddress });
+
+      return {
+        transactionHash: tx.transactionHash,
+        verified: true,
+        timestamp: tx.events.DocumentVerified.returnValues.timestamp
+      };
+    } catch (error) {
+      throw new Error(`Document verification failed: ${error.message}`);
     }
   }
 }
