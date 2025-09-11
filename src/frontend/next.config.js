@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
+  outputFileTracingRoot: __dirname,
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_FILECOIN_NETWORK: process.env.NEXT_PUBLIC_FILECOIN_NETWORK,
@@ -24,6 +22,16 @@ const nextConfig = {
         stream: require.resolve('stream-browserify'),
         buffer: require.resolve('buffer'),
       };
+      
+      // Increase chunk loading timeout to prevent timeout errors
+      config.watchOptions = {
+        ...config.watchOptions,
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+      
+      // Increase the timeout for loading chunks
+      config.output.chunkLoadTimeout = 60000; // 60 seconds
     }
     
     return config;

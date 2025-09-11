@@ -125,8 +125,8 @@ class ContractService {
 
       // If signer is available, connect contracts for write operations
       if (signer) {
-        this.registryContract = this.registryContract.connect(signer);
-        this.accessControlContract = this.accessControlContract.connect(signer);
+        this.registryContract = this.registryContract.connect(signer) as Contract;
+        this.accessControlContract = this.accessControlContract.connect(signer) as Contract;
       }
     } catch (error) {
       console.error('Error initializing contracts:', error);

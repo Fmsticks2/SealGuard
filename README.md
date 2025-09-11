@@ -6,6 +6,28 @@
 
 SealGuard is a compliance-focused SaaS platform that creates immutable, cryptographically verifiable audit trails for sensitive documents and logs. Built on Filecoin Onchain Cloud, it serves regulated industries including healthcare, finance, and legal sectors by providing trustless, scalable integrity verification.
 
+## 🚀 Quick Deployment
+
+**Ready to deploy SealGuard to production?**
+
+- 📖 **[Complete Deployment Guide](./DEPLOYMENT.md)** - Comprehensive deployment instructions
+- ✅ **[Deployment Checklist](./DEPLOYMENT-CHECKLIST.md)** - Step-by-step deployment verification
+- 🖥️ **Frontend**: Deploy to [Vercel](https://vercel.com) (recommended)
+- ⚙️ **Backend**: Deploy to [Railway](https://railway.app) or [Render](https://render.com)
+- 🔧 **Scripts**: Automated deployment scripts in `/scripts` directory
+
+### Quick Start Deployment
+
+```bash
+# Deploy Frontend to Vercel
+./scripts/deploy-frontend.sh production
+
+# Deploy Backend to Railway
+./scripts/deploy-backend.sh railway production
+```
+
+**Windows Users**: Use PowerShell scripts (`.ps1` files) in the `/scripts` directory.
+
 ---
 
 ## 1. Problem Statement

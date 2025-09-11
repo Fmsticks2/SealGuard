@@ -1,25 +1,17 @@
-import { createAppKit } from '@reown/appkit/react';
-import { EthersAdapter } from '@reown/appkit-adapter-ethers';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
 import { SiweMessage } from 'siwe';
 
-// Web3Modal configuration
-const projectId = process.env.REACT_APP_REOWN_PROJECT_ID || 'your-reown-project-id';
+// Note: AppKit instance is now managed by Web3Provider.tsx
+// This service will work with the provider from Web3Context
 
-const metadata = {
-  name: 'SealGuard',
-  description: 'Decentralized Document Verification System',
-  url: 'https://sealguard.app',
-  icons: ['https://sealguard.app/icon.png']
-};
-
+// Define supported chains for switchChain functionality
 const chains = [
   {
     chainId: 1,
-    name: 'Ethereum',
+    name: 'Ethereum Mainnet',
     currency: 'ETH',
     explorerUrl: 'https://etherscan.io',
-    rpcUrl: 'https://cloudflare-eth.com'
+    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY'
   },
   {
     chainId: 11155111,
@@ -36,7 +28,7 @@ const chains = [
     rpcUrl: 'https://polygon-rpc.com'
   },
   {
-    chainId: 1337,
+    chainId: 31337,
     name: 'Localhost',
     currency: 'ETH',
     explorerUrl: 'http://localhost:8545',
@@ -44,18 +36,10 @@ const chains = [
   }
 ];
 
-// Create Reown AppKit instance
-const ethersAdapter = new EthersAdapter();
-
-export const appKit = createAppKit({
-  adapters: [ethersAdapter],
-  networks: chains,
-  metadata,
-  projectId,
-  features: {
-    analytics: true
-  }
-});
+// Import appKit from Web3Provider - we'll access it through a global reference
+declare global {
+  var appKit: any;
+}
 
 export interface AuthUser {
   address: string;
@@ -86,20 +70,8 @@ class Web3AuthService {
   }
 
   private initializeListeners() {
-    // Listen for account changes
-    appKit.subscribeProvider(({ provider, address, chainId, isConnected }) => {
-      if (provider && address && isConnected) {
-        this.provider = new BrowserProvider(provider);
-        this.currentUser = {
-          address,
-          chainId: chainId || 1,
-          isConnected
-        };
-        this.getSigner();
-      } else {
-        this.disconnect();
-      }
-    });
+    // Note: Listeners are now handled by Web3Provider.tsx
+    // This service will be updated to work with Web3Context
   }
 
   async getSigner(): Promise<JsonRpcSigner | null> {
@@ -146,24 +118,10 @@ class Web3AuthService {
   }
 
   async connectWallet(): Promise<AuthUser | null> {
-    try {
-      await appKit.open();
-      
-      // Wait for connection
-      return new Promise((resolve) => {
-        const checkConnection = () => {
-          if (this.currentUser?.isConnected) {
-            resolve(this.currentUser);
-          } else {
-            setTimeout(checkConnection, 100);
-          }
-        };
-        checkConnection();
-      });
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      return null;
-    }
+    // Note: Wallet connection is now handled by Web3Provider.tsx
+    // This method should be called through Web3Context
+    console.warn('connectWallet should be called through Web3Context');
+    return null;
   }
 
   async signInWithEthereum(): Promise<SiweSession | null> {
@@ -217,7 +175,9 @@ class Web3AuthService {
 
   async disconnect(): Promise<void> {
     try {
-      await appKit.disconnect();
+      if (globalThis.appKit && typeof globalThis.appKit.disconnect === 'function') {
+        await globalThis.appKit.disconnect();
+      }
       this.provider = null;
       this.signer = null;
       this.currentUser = null;
@@ -264,7 +224,7 @@ class Web3AuthService {
     } catch (error: any) {
       // Chain not added to wallet
       if (error.code === 4902) {
-        const chain = chains.find(c => c.chainId === chainId);
+        const chain = chains.find((c: any) => c.chainId === chainId);
         if (chain) {
           try {
             await this.provider!.send('wallet_addEthereumChain', [{
