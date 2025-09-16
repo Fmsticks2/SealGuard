@@ -1,4 +1,4 @@
-# SealGuard Enhanced Technical Architecture
+   # SealGuard Enhanced Technical Architecture
 
 *Comprehensive Web3-Native System Design for Enterprise Compliance*
 
