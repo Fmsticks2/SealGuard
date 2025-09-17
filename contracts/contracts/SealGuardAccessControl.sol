@@ -11,10 +11,19 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  */
 contract SealGuardAccessControl is AccessControl, ReentrancyGuard {
     
-    // Role definitions
-    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
+    // Role definitions - aligned with backend hierarchy
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
     bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
+    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
     bytes32 public constant DOCUMENT_MANAGER_ROLE = keccak256("DOCUMENT_MANAGER_ROLE");
+    bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
+    
+    // Role hierarchy levels
+    mapping(bytes32 => uint8) public roleHierarchy;
+    
+    // User role assignments
+    mapping(address => bytes32) public userRoles;
     
     struct AccessPermission {
         uint256 documentId;
@@ -71,9 +80,23 @@ contract SealGuardAccessControl is AccessControl, ReentrancyGuard {
     
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(VERIFIER_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
+        _grantRole(MODERATOR_ROLE, msg.sender);
         _grantRole(AUDITOR_ROLE, msg.sender);
+        _grantRole(VERIFIER_ROLE, msg.sender);
         _grantRole(DOCUMENT_MANAGER_ROLE, msg.sender);
+        _grantRole(USER_ROLE, msg.sender);
+        
+        // Initialize role hierarchy (higher number = more permissions)
+        roleHierarchy[USER_ROLE] = 1;
+        roleHierarchy[VERIFIER_ROLE] = 2;
+        roleHierarchy[AUDITOR_ROLE] = 3;
+        roleHierarchy[DOCUMENT_MANAGER_ROLE] = 3;
+        roleHierarchy[MODERATOR_ROLE] = 4;
+        roleHierarchy[ADMIN_ROLE] = 5;
+        
+        // Set deployer as admin
+        userRoles[msg.sender] = ADMIN_ROLE;
     }
     
     /**
@@ -224,6 +247,58 @@ contract SealGuardAccessControl is AccessControl, ReentrancyGuard {
         return true;
     }
     
+    /**
+     * @dev Assign role to user (only admin can assign roles)
+     * @param user The address to assign role to
+     * @param role The role to assign
+     */
+    function assignUserRole(address user, bytes32 role) external onlyRole(ADMIN_ROLE) {
+        require(user != address(0), "Invalid user address");
+        require(roleHierarchy[role] > 0, "Invalid role");
+        
+        // Revoke previous role if exists
+        bytes32 currentRole = userRoles[user];
+        if (currentRole != bytes32(0)) {
+            _revokeRole(currentRole, user);
+        }
+        
+        // Grant new role
+        _grantRole(role, user);
+        userRoles[user] = role;
+    }
+    
+    /**
+     * @dev Check if user has required role or higher in hierarchy
+     * @param user The address to check
+     * @param requiredRole The minimum required role
+     */
+    function hasRoleOrHigher(address user, bytes32 requiredRole) external view returns (bool) {
+        bytes32 userRole = userRoles[user];
+        if (userRole == bytes32(0)) return false;
+        
+        return roleHierarchy[userRole] >= roleHierarchy[requiredRole];
+    }
+    
+    /**
+     * @dev Get user's current role
+     * @param user The address to check
+     */
+    function getUserRole(address user) external view returns (bytes32) {
+        return userRoles[user];
+    }
+    
+    /**
+     * @dev Check if user can perform action based on role hierarchy
+     * @param user The address to check
+     * @param requiredLevel The minimum hierarchy level required
+     */
+    function canPerformAction(address user, uint8 requiredLevel) external view returns (bool) {
+        bytes32 userRole = userRoles[user];
+        if (userRole == bytes32(0)) return false;
+        
+        return roleHierarchy[userRole] >= requiredLevel;
+    }
+
     /**
      * @dev Join an organization
      * @param organizationId The ID of the organization

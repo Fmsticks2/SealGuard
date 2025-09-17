@@ -1,142 +1,101 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { createServer } from 'http';
+import app, { server } from './app';
+import { db } from './config/database';
+import logger from './utils/logger';
+import { eventMonitorService } from './services/eventMonitorService';
+import { enhancedBlockchainService } from './services/enhancedBlockchainService';
 
 // Load environment variables
 dotenv.config();
-
-// Import routes - Web3-native minimal backend
-import uploadRoutes from './routes/upload';
-import notificationRoutes from './routes/notifications';
-
-// Import middleware
-import { errorHandler } from './middleware/errorHandler';
-import { rateLimiter } from './middleware/rateLimiter';
-import { requestLogger } from './middleware/requestLogger';
-
-const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet({
-  crossOriginEmbedderPolicy: false,
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-}));
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
-// Body parsing middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Logging middleware
-app.use(morgan(process.env.LOG_FORMAT || 'combined'));
-app.use(requestLogger);
-
-// Rate limiting
-app.use(rateLimiter);
-
-// Health check endpoint
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV,
-    version: process.env.API_VERSION || 'v1',
-  });
-});
-
-// API routes - Web3-native minimal backend
-app.use('/api/upload', uploadRoutes);
-app.use('/api/notifications', notificationRoutes);
-
-// Web3 health check with contract connectivity
-app.get('/api/web3/health', (_req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    services: {
-      ipfs: 'available',
-      filecoin: 'available',
-      notifications: 'available'
-    },
-    version: process.env.npm_package_version || '1.0.0',
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.originalUrl} not found`,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Global error handler
-app.use(errorHandler);
-
-// Create HTTP server
-const server = createServer(app);
-
-// Start server
-server.listen(PORT, () => {
-  console.log(`🚀 SealGuard Web3 Backend running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌐 Web3 health: http://localhost:${PORT}/api/web3/health`);
-  console.log(`🔗 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
-});
-
-// Start server
 async function startServer() {
   try {
-    // Start server (Web3-native architecture - no database connection needed)
+    // Initialize database connection
+    logger.info('🔌 Connecting to database...');
+    await db.$connect();
+    logger.info('✅ Database connected successfully');
+
+    // Run database migrations in development
+    if (process.env.NODE_ENV !== 'production') {
+      logger.info('🔄 Running database migrations...');
+      // Note: In production, migrations should be run separately
+      // await db.$executeRaw`-- Add any necessary migrations here`;
+    }
+
+    // Initialize blockchain event monitoring
+    logger.info('🔗 Starting blockchain event monitoring...');
+    await eventMonitorService.startMonitoring();
+    logger.info('✅ Blockchain event monitoring started');
+
+    // Warm up blockchain cache
+    await enhancedBlockchainService.warmUpCache();
+    logger.info('✅ Blockchain caching service initialized');
+
+    // Schedule periodic cache cleanup and sync
+    setInterval(async () => {
+      try {
+        await enhancedBlockchainService.syncDatabaseWithBlockchain();
+        logger.info('Periodic blockchain sync completed');
+      } catch (error) {
+        logger.error('Periodic blockchain sync failed', { error });
+      }
+    }, 30 * 60 * 1000); // Every 30 minutes
+
+    // Start the server with WebSocket support
     server.listen(PORT, () => {
-      console.log(`🚀 SealGuard API Server running on port ${PORT}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔗 Web3-native architecture - decentralized storage ready`);
+      logger.info(`🚀 SealGuard Backend Server running on port ${PORT}`);
+      logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
+      logger.info(`📚 API Documentation: http://localhost:${PORT}/api`);
+      logger.info(`🌐 WebSocket server running on port ${PORT}`);
     });
+
+    // Graceful shutdown handlers
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`${signal} received, shutting down gracefully...`);
+      
+      server.close(async () => {
+        logger.info('HTTP server closed');
+        
+        try {
+          await db.$disconnect();
+          logger.info('Database connection closed');
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during database disconnect:', error);
+          process.exit(1);
+        }
+      });
+
+      // Force close after 10 seconds
+      setTimeout(() => {
+        logger.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught Exception:', error);
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      process.exit(1);
+    });
+
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 }
 
+// Start the server
 startServer();
 
 export default app;

@@ -4,13 +4,58 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import path from 'path';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
+import { db } from './config/database';
+import logger from './utils/logger';
+
+// Import routes
+import authRoutes from './routes/auth';
+import documentRoutes from './routes/documents';
+import verificationRoutes from './routes/verification';
 import uploadRoutes from './routes/upload';
 import notificationRoutes from './routes/notifications';
+import cacheRoutes from './routes/cache';
 
 const app = express();
+const server = createServer(app);
+
+// Initialize Socket.IO for real-time events
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL || 'https://sealguard.app'
+      : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    methods: ['GET', 'POST']
+  }
+});
+
+// Make io available globally for event broadcasting
+app.set('io', io);
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  logger.info(`Client connected: ${socket.id}`);
+  
+  socket.on('subscribe-to-events', (data) => {
+    const { userId, documentId } = data;
+    if (userId) {
+      socket.join(`user:${userId}`);
+      logger.info(`User ${userId} subscribed to events`);
+    }
+    if (documentId) {
+      socket.join(`document:${documentId}`);
+      logger.info(`Subscribed to document ${documentId} events`);
+    }
+  });
+  
+  socket.on('disconnect', () => {
+    logger.info(`Client disconnected: ${socket.id}`);
+  });
+});
 
 // Security middleware
 app.use(helmet({
@@ -58,19 +103,35 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(rateLimiter);
 
 // Health check endpoint
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0',
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    // Check database connection
+    await db.$queryRaw`SELECT 1`;
+    
+    res.status(200).json({
+      success: true,
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(503).json({
+      success: false,
+      status: 'Service Unavailable',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
-// API routes - Web3-native minimal backend
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/verification', verificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/cache', cacheRoutes);
 
 // Web3 health check with contract connectivity
 app.get('/api/web3/health', (_req, res) => {
@@ -102,3 +163,4 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;
+export { server, io };

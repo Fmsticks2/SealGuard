@@ -1,275 +1,437 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import { rateLimiter } from '../middleware/rateLimiter';
-import { ValidationError } from '../middleware/errorHandler';
+import { Router, Request, Response } from 'express';
+import { logger } from '../utils/logger';
+import {
+  authenticate,
+  AuthenticatedRequest
+} from '../middleware/auth';
+import { authorize } from '../middleware/authorize';
+// Removed enum imports - using string literals instead
+import { db } from '../config/database';
+import { EventEmitter } from 'events';
 
 const router = Router();
 
-// Simple in-memory notification store (in production, use Redis or similar)
-interface Notification {
-  id: string;
-  walletAddress: string;
-  type: 'document_registered' | 'access_granted' | 'access_revoked' | 'verification_completed' | 'system';
-  title: string;
-  message: string;
-  data?: any;
-  read: boolean;
-  createdAt: Date;
-}
+// Event emitter for real-time notifications
+export const notificationEmitter = new EventEmitter();
 
-class NotificationService {
-  private notifications: Map<string, Notification[]> = new Map();
-
-  addNotification(walletAddress: string, notification: Omit<Notification, 'id' | 'walletAddress' | 'read' | 'createdAt'>) {
-    const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newNotification: Notification = {
-      id,
-      walletAddress: walletAddress.toLowerCase(),
-      read: false,
-      createdAt: new Date(),
-      ...notification
-    };
-
-    const userNotifications = this.notifications.get(walletAddress.toLowerCase()) || [];
-    userNotifications.unshift(newNotification); // Add to beginning
-
-    // Keep only last 100 notifications per user
-    if (userNotifications.length > 100) {
-      userNotifications.splice(100);
-    }
-
-    this.notifications.set(walletAddress.toLowerCase(), userNotifications);
-
-    console.log(`📧 Notification added for ${walletAddress}:`, notification.title);
-    return newNotification;
-  }
-
-  getNotifications(walletAddress: string, limit = 50, offset = 0): Notification[] {
-    const userNotifications = this.notifications.get(walletAddress.toLowerCase()) || [];
-    return userNotifications.slice(offset, offset + limit);
-  }
-
-  markAsRead(walletAddress: string, notificationId: string): boolean {
-    const userNotifications = this.notifications.get(walletAddress.toLowerCase()) || [];
-    const notification = userNotifications.find(n => n.id === notificationId);
-
-    if (notification) {
-      notification.read = true;
-      return true;
-    }
-
-    return false;
-  }
-
-  markAllAsRead(walletAddress: string): number {
-    const userNotifications = this.notifications.get(walletAddress.toLowerCase()) || [];
-    let count = 0;
-
-    userNotifications.forEach(notification => {
-      if (!notification.read) {
-        notification.read = true;
-        count++;
-      }
-    });
-
-    return count;
-  }
-
-  getUnreadCount(walletAddress: string): number {
-    const userNotifications = this.notifications.get(walletAddress.toLowerCase()) || [];
-    return userNotifications.filter(n => !n.read).length;
-  }
-}
-
-const notificationService = new NotificationService();
-
-// Get notifications for a wallet address
-router.get('/:walletAddress',
-  rateLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * Notification Service
+ */
+export class NotificationService {
+  /**
+   * Create a new notification
+   */
+  static async createNotification({
+    userId,
+    type,
+    title,
+    message,
+    priority = 'MEDIUM',
+    metadata = {},
+    actionUrl
+  }: {
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    priority?: string;
+    metadata?: any;
+    actionUrl?: string;
+  }) {
     try {
-      const { walletAddress } = req.params;
-      const { limit = '50', offset = '0' } = req.query;
+      const notification = await db.notification.create({
+        data: {
+          userId,
+          type,
+          title,
+          message,
+          priority,
+          metadata,
+          actionUrl,
+          isRead: false
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              walletAddress: true,
+              username: true
+            }
+          }
+        }
+      });
 
-      if (!walletAddress) {
-        throw new ValidationError('Wallet address is required');
+      // Emit real-time notification
+      notificationEmitter.emit('notification', {
+        userId,
+        notification
+      });
+
+      logger.info(`Notification created for user ${userId}: ${title}`);
+      return notification;
+    } catch (error) {
+      logger.error('Failed to create notification:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create bulk notifications
+   */
+  static async createBulkNotifications(notifications: Array<{
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    priority?: string;
+    metadata?: any;
+    actionUrl?: string;
+  }>) {
+    try {
+      const createdNotifications = await db.notification.createMany({
+        data: notifications.map(notif => ({
+          ...notif,
+          priority: notif.priority || NotificationPriority.MEDIUM,
+          metadata: notif.metadata || {},
+          isRead: false
+        }))
+      });
+
+      // Emit bulk notification event
+      notificationEmitter.emit('bulk_notification', {
+        count: createdNotifications.count,
+        userIds: notifications.map(n => n.userId)
+      });
+
+      logger.info(`Created ${createdNotifications.count} bulk notifications`);
+      return createdNotifications;
+    } catch (error) {
+      logger.error('Failed to create bulk notifications:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Mark notification as read
+   */
+  static async markAsRead(notificationId: string, userId: string) {
+    try {
+      const notification = await db.notification.updateMany({
+        where: {
+          id: notificationId,
+          userId
+        },
+        data: {
+          isRead: true,
+          readAt: new Date()
+        }
+      });
+
+      return notification.count > 0;
+    } catch (error) {
+      logger.error('Failed to mark notification as read:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Mark all notifications as read for a user
+   */
+  static async markAllAsRead(userId: string) {
+    try {
+      const result = await db.notification.updateMany({
+        where: {
+          userId,
+          isRead: false
+        },
+        data: {
+          isRead: true,
+          readAt: new Date()
+        }
+      });
+
+      return result.count;
+    } catch (error) {
+      logger.error('Failed to mark all notifications as read:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Delete old notifications
+   */
+  static async cleanupOldNotifications(daysOld: number = 30) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+      const result = await db.notification.deleteMany({
+        where: {
+          createdAt: {
+            lt: cutoffDate
+          },
+          isRead: true
+        }
+      });
+
+      logger.info(`Cleaned up ${result.count} old notifications`);
+      return result.count;
+    } catch (error) {
+      logger.error('Failed to cleanup old notifications:', error);
+      return 0;
+    }
+  }
+}
+
+/**
+ * GET /notifications
+ * Get user notifications with filtering and pagination
+ */
+router.get('/',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const {
+        page = 1,
+        limit = 20,
+        type,
+        priority,
+        isRead,
+        dateFrom,
+        dateTo
+      } = req.query;
+
+      // Build filters
+      const where: any = {
+        userId: req.user.userId
+      };
+      
+      if (type) where.type = type as NotificationType;
+      if (priority) where.priority = priority as NotificationPriority;
+      if (isRead !== undefined) where.isRead = isRead === 'true';
+      
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
+        if (dateTo) where.createdAt.lte = new Date(dateTo as string);
       }
 
-      const notifications = notificationService.getNotifications(
-        walletAddress,
-        parseInt(limit as string, 10),
-        parseInt(offset as string, 10)
-      );
+      const [notifications, total, unreadCount] = await Promise.all([
+        db.notification.findMany({
+          where,
+          orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+          skip: (parseInt(page as string) - 1) * parseInt(limit as string),
+          take: parseInt(limit as string)
+        }),
+        db.notification.count({ where }),
+        db.notification.count({
+          where: {
+            userId: req.user.userId,
+            isRead: false
+          }
+        })
+      ]);
 
-      const unreadCount = notificationService.getUnreadCount(walletAddress);
+      const pages = Math.ceil(total / parseInt(limit as string));
 
-      return res.status(200).json({
+      res.json({
         success: true,
         data: {
           notifications,
-          unreadCount,
-          total: notifications.length
+          pagination: {
+            page: parseInt(page as string),
+            limit: parseInt(limit as string),
+            total,
+            pages
+          },
+          unreadCount
+        }
+      });
+    } catch (error) {
+      logger.error('Get notifications error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get notifications',
+        code: 'GET_NOTIFICATIONS_ERROR'
+      });
+    }
+  }
+);
+
+/**
+ * GET /notifications/unread
+ * Get unread notifications count
+ */
+router.get('/unread',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const unreadCount = await db.notification.count({
+        where: {
+          userId: req.user.userId,
+          isRead: false
         }
       });
 
-    } catch (error) {
-      return next(error);
-    }
-  }
-);
-
-// Create a notification (for system use or webhook triggers)
-router.post('/',
-  rateLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { walletAddress, type, title, message, data } = req.body;
-
-      if (!walletAddress || !type || !title || !message) {
-        throw new ValidationError('walletAddress, type, title, and message are required');
-      }
-
-      const validTypes = ['document_registered', 'access_granted', 'access_revoked', 'verification_completed', 'system'];
-      if (!validTypes.includes(type)) {
-        throw new ValidationError(`Invalid notification type. Must be one of: ${validTypes.join(', ')}`);
-      }
-
-      const notification = notificationService.addNotification(walletAddress, {
-        type,
-        title,
-        message,
-        data
-      });
-
-      return res.status(201).json({
+      res.json({
         success: true,
-        data: notification,
-        message: 'Notification created successfully'
+        data: { unreadCount }
       });
-
     } catch (error) {
-      return next(error);
+      logger.error('Get unread count error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get unread count',
+        code: 'GET_UNREAD_COUNT_ERROR'
+      });
     }
   }
 );
 
-// Mark notification as read
-router.patch('/:walletAddress/:notificationId/read',
-  rateLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * PUT /notifications/:id/read
+ * Mark notification as read
+ */
+router.put('/:id/read',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { walletAddress, notificationId } = req.params;
-
-      if (!walletAddress || !notificationId) {
-        throw new ValidationError('Wallet address and notification ID are required');
-      }
-
-      const success = notificationService.markAsRead(walletAddress, notificationId);
-
+      const { id } = req.params;
+      
+      const success = await NotificationService.markAsRead(id, req.user.userId);
+      
       if (!success) {
         return res.status(404).json({
           success: false,
-          message: 'Notification not found'
+          message: 'Notification not found',
+          code: 'NOTIFICATION_NOT_FOUND'
         });
       }
 
-      return res.status(200).json({
+      res.json({
         success: true,
         message: 'Notification marked as read'
       });
-
     } catch (error) {
-      return next(error);
-    }
-  }
-);
-
-// Mark all notifications as read
-router.patch('/:walletAddress/read-all',
-  rateLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { walletAddress } = req.params;
-
-      if (!walletAddress) {
-        throw new ValidationError('Wallet address is required');
-      }
-
-      const count = notificationService.markAllAsRead(walletAddress);
-
-      return res.status(200).json({
-        success: true,
-        data: { markedCount: count },
-        message: `${count} notifications marked as read`
+      logger.error('Mark notification as read error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to mark notification as read',
+        code: 'MARK_READ_ERROR'
       });
-
-    } catch (error) {
-      return next(error);
     }
   }
 );
 
-// Webhook endpoint for blockchain events (can be called by external services)
-router.post('/webhook/blockchain-event',
-  rateLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * PUT /notifications/read-all
+ * Mark all notifications as read
+ */
+router.put('/read-all',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { eventType, walletAddress, transactionHash, blockNumber, data } = req.body;
+      const count = await NotificationService.markAllAsRead(req.user.userId);
+      
+      res.json({
+        success: true,
+        message: `Marked ${count} notifications as read`,
+        data: { count }
+      });
+    } catch (error) {
+      logger.error('Mark all notifications as read error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to mark all notifications as read',
+        code: 'MARK_ALL_READ_ERROR'
+      });
+    }
+  }
+);
 
-      if (!eventType || !walletAddress) {
-        throw new ValidationError('eventType and walletAddress are required');
-      }
-
-      let title = 'Blockchain Event';
-      let message = 'A blockchain event occurred';
-      let notificationType: Notification['type'] = 'system';
-
-      // Map blockchain events to user-friendly notifications
-      switch (eventType) {
-        case 'DocumentRegistered':
-          title = 'Document Registered';
-          message = 'Your document has been successfully registered on the blockchain';
-          notificationType = 'document_registered';
-          break;
-        case 'AccessGranted':
-          title = 'Access Granted';
-          message = 'You have been granted access to a document';
-          notificationType = 'access_granted';
-          break;
-        case 'AccessRevoked':
-          title = 'Access Revoked';
-          message = 'Your access to a document has been revoked';
-          notificationType = 'access_revoked';
-          break;
-        case 'VerificationCompleted':
-          title = 'Verification Completed';
-          message = 'Document verification has been completed';
-          notificationType = 'verification_completed';
-          break;
-      }
-
-      const notification = notificationService.addNotification(walletAddress, {
-        type: notificationType,
+/**
+ * POST /notifications/send
+ * Send notification (Admin only)
+ */
+router.post('/send',
+  authenticate,
+  authorize('ADMIN'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const {
+        userIds,
+        type,
         title,
         message,
-        data: {
-          eventType,
-          transactionHash,
-          blockNumber,
-          ...data
-        }
-      });
+        priority = NotificationPriority.MEDIUM,
+        metadata = {},
+        actionUrl,
+        sendToAll = false
+      } = req.body;
 
-      return res.status(201).json({
+      if (!title || !message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title and message are required',
+          code: 'MISSING_REQUIRED_FIELDS'
+        });
+      }
+
+      let targetUserIds: string[] = [];
+
+      if (sendToAll) {
+        // Get all active users
+        const users = await db.user.findMany({
+          where: { isActive: true },
+          select: { id: true }
+        });
+        targetUserIds = users.map(user => user.id);
+      } else if (userIds && Array.isArray(userIds)) {
+        targetUserIds = userIds;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'User IDs are required when not sending to all',
+          code: 'MISSING_USER_IDS'
+        });
+      }
+
+      // Create notifications
+      const notifications = targetUserIds.map(userId => ({
+        userId,
+        type: type as NotificationType,
+        title,
+        message,
+        priority: priority as NotificationPriority,
+        metadata,
+        actionUrl
+      }));
+
+      const result = await NotificationService.createBulkNotifications(notifications);
+      
+      if (!result) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send notifications',
+          code: 'SEND_FAILED'
+        });
+      }
+
+      res.status(201).json({
         success: true,
-        data: notification,
-        message: 'Blockchain event notification created'
+        message: `Sent ${result.count} notifications`,
+        data: { count: result.count }
       });
-
     } catch (error) {
-      return next(error);
+      logger.error('Send notification error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send notification',
+        code: 'SEND_NOTIFICATION_ERROR'
+      });
     }
   }
 );
 
 export default router;
-export { notificationService };
+export { NotificationService };

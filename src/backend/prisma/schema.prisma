@@ -1,0 +1,143 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id              String   @id @default(cuid())
+  walletAddress   String   @unique
+  email           String?  @unique
+  name            String?
+  role            String   @default("USER")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLoginAt     DateTime?
+  
+  // Relations
+  documents       Document[]
+  verifications   VerificationRecord[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  
+  @@map("users")
+}
+
+model Document {
+  id                String   @id @default(cuid())
+  fileName          String
+  originalName      String
+  fileSize          Int
+  mimeType          String
+  ipfsHash          String   @unique
+  ipfsUrl           String
+  description       String?
+  tags              String
+  category          String   @default("OTHER")
+  status            String   @default("PENDING")
+  isPublic          Boolean  @default(false)
+  encryptionKey     String?
+  checksum          String
+  uploadedAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  expiresAt         DateTime?
+  
+  // Relations
+  uploaderId        String
+  uploader          User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  verifications     VerificationRecord[]
+  auditLogs         AuditLog[]
+  
+  @@map("documents")
+}
+
+model VerificationRecord {
+  id                String   @id @default(cuid())
+  transactionHash   String?  @unique
+  blockNumber       Int?
+  gasUsed           String?
+  gasPrice          String?
+  status            String   @default("PENDING")
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  errorMessage      String?
+  retryCount        Int      @default(0)
+  maxRetries        Int      @default(3)
+  
+  // Relations
+  documentId        String
+  document          Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  verifierId        String
+  verifier          User     @relation(fields: [verifierId], references: [id])
+  auditLogs         AuditLog[]
+  
+  @@map("verification_records")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  type        String   @default("INFO")
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+  expiresAt   DateTime?
+  metadata    String?
+  
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String
+  oldValues   String?
+  newValues   String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id])
+  verificationId String?
+  verification VerificationRecord? @relation(fields: [verificationId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_config")
+}
+
+// Note: SQLite doesn't support enums, so we use string constants
+// Status values are now centralized in src/types/status.ts
+// Valid values for role: USER, VERIFIER, ADMIN, AUDITOR
+// Valid values for category: LEGAL, MEDICAL, FINANCIAL, IDENTITY, CONTRACT, CERTIFICATE, OTHER
+// Valid values for document status: pending, processing, verified, rejected, expired, archived
+// Valid values for verification status: PENDING, IN_PROGRESS, COMPLETED, FAILED
+// Valid values for notification type: INFO, SUCCESS, WARNING, ERROR, VERIFICATION_COMPLETE, VERIFICATION_FAILED, DOCUMENT_UPLOADED, DOCUMENT_EXPIRED
