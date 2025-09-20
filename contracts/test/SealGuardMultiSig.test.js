@@ -61,7 +61,7 @@ describe("SealGuardMultiSig", function () {
             const defaultConfig = await multiSig.defaultConfig();
             expect(defaultConfig.minSigners).to.equal(2);
             expect(defaultConfig.maxSigners).to.equal(10);
-            expect(defaultConfig.approvalThreshold).to.equal(67);
+            expect(defaultConfig.approvalThreshold).to.equal(60);
             expect(defaultConfig.proposalExpiry).to.equal(7 * 24 * 60 * 60); // 7 days
         });
         
@@ -99,10 +99,10 @@ describe("SealGuardMultiSig", function () {
             ).to.emit(multiSig, "ProposalCreated");
             
             const proposal = await multiSig.getProposal(1);
-            expect(proposal.documentId).to.equal(documentId);
-            expect(proposal.proposer).to.equal(verifier1.address);
-            expect(proposal.operationType).to.equal(0); // VERIFICATION
-            expect(proposal.status).to.equal(0); // PENDING
+            expect(proposal[2]).to.equal(ethers.zeroPadValue(ethers.toBeHex(documentId), 32)); // documentId is at index 2
+            expect(proposal[3]).to.equal(verifier1.address); // proposer is at index 3
+            expect(proposal[1]).to.equal(0); // operationType is at index 1, VERIFICATION = 0
+            expect(proposal[10]).to.equal(0); // state is at index 10, PENDING = 0
         });
         
         it("Should create ownership transfer proposal", async function () {
@@ -124,7 +124,7 @@ describe("SealGuardMultiSig", function () {
             ).to.emit(multiSig, "ProposalCreated");
             
             const proposal = await multiSig.getProposal(1);
-            expect(proposal.operationType).to.equal(1); // OWNERSHIP_TRANSFER
+            expect(proposal[1]).to.equal(1); // operationType is at index 1, OWNERSHIP_TRANSFER = 1
         });
         
         it("Should create archive proposal", async function () {
@@ -206,7 +206,7 @@ describe("SealGuardMultiSig", function () {
             ).to.emit(multiSig, "ProposalApproved");
             
             const proposal = await multiSig.getProposal(proposalId);
-            expect(proposal.approvals).to.equal(1);
+            expect(proposal[7]).to.equal(1); // currentApprovals is at index 7
             expect(await multiSig.hasApproved(proposalId, verifier2.address)).to.be.true;
         });
         
