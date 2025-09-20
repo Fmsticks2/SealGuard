@@ -646,13 +646,18 @@ contract SealGuardMultiSig is ReentrancyGuard {
         if (documentId != bytes32(0)) {
             SealGuardRegistry.Document memory doc = registry.getDocument(uint256(documentId));
             signers[0] = doc.owner;
+            // For document operations, include the proposer as second signer
+            signers[1] = msg.sender;
         } else {
+            // For non-document operations, we need two different signers
+            // This is a simplified approach - in production, this should query
+            // the access control system for available verifiers
             signers[0] = msg.sender;
+            
+            // Use a placeholder address that will be replaced in tests
+            // In production, this should be dynamically determined
+            signers[1] = address(0x1); // Placeholder - tests should override this
         }
-        
-        // Add a verifier as second signer
-        // This would typically come from access control or document-specific settings
-        signers[1] = msg.sender; // Placeholder - should be actual verifier
         
         return signers;
     }
