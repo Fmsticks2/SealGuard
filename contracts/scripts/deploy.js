@@ -19,10 +19,18 @@ async function main() {
   // Deploy SealGuardRegistry
   console.log("\nDeploying SealGuardRegistry...");
   const SealGuardRegistry = await ethers.getContractFactory("SealGuardRegistry");
-  const registry = await SealGuardRegistry.deploy(deployer.address);
+  const registry = await SealGuardRegistry.deploy(deployer.address, accessControlAddress);
   await registry.waitForDeployment();
   const registryAddress = await registry.getAddress();
   console.log("SealGuardRegistry deployed to:", registryAddress);
+
+  // Deploy SealGuardMultiSig
+  console.log("\nDeploying SealGuardMultiSig...");
+  const SealGuardMultiSig = await ethers.getContractFactory("SealGuardMultiSig");
+  const multiSig = await SealGuardMultiSig.deploy(accessControlAddress, registryAddress);
+  await multiSig.waitForDeployment();
+  const multiSigAddress = await multiSig.getAddress();
+  console.log("SealGuardMultiSig deployed to:", multiSigAddress);
 
   // Verify deployment
   console.log("\nVerifying deployments...");
@@ -30,12 +38,16 @@ async function main() {
   // Check if contracts are deployed correctly
   const registryCode = await ethers.provider.getCode(registryAddress);
   const accessControlCode = await ethers.provider.getCode(accessControlAddress);
+  const multiSigCode = await ethers.provider.getCode(multiSigAddress);
   
   if (registryCode === "0x") {
     throw new Error("SealGuardRegistry deployment failed");
   }
   if (accessControlCode === "0x") {
     throw new Error("SealGuardAccessControl deployment failed");
+  }
+  if (multiSigCode === "0x") {
+    throw new Error("SealGuardMultiSig deployment failed");
   }
 
   console.log("✅ All contracts deployed successfully!");
@@ -54,6 +66,10 @@ async function main() {
       SealGuardAccessControl: {
         address: accessControlAddress,
         transactionHash: accessControl.deploymentTransaction().hash
+      },
+      SealGuardMultiSig: {
+        address: multiSigAddress,
+        transactionHash: multiSig.deploymentTransaction().hash
       }
     }
   };
@@ -82,13 +98,15 @@ async function main() {
   console.log(`\nContract Addresses:`);
   console.log(`SealGuardRegistry: ${registryAddress}`);
   console.log(`SealGuardAccessControl: ${accessControlAddress}`);
+  console.log(`SealGuardMultiSig: ${multiSigAddress}`);
   console.log("\n" + "=".repeat(60));
   
   // If on a testnet or mainnet, provide verification commands
   if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
     console.log("\nTo verify contracts on Etherscan, run:");
-    console.log(`npx hardhat verify --network ${hre.network.name} ${registryAddress}`);
+    console.log(`npx hardhat verify --network ${hre.network.name} ${registryAddress} ${deployer.address} ${accessControlAddress}`);
     console.log(`npx hardhat verify --network ${hre.network.name} ${accessControlAddress}`);
+    console.log(`npx hardhat verify --network ${hre.network.name} ${multiSigAddress} ${accessControlAddress} ${registryAddress}`);
   }
 }
 

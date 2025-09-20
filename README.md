@@ -28,6 +28,50 @@ SealGuard is a compliance-focused SaaS platform that creates immutable, cryptogr
 
 **Windows Users**: Use PowerShell scripts (`.ps1` files) in the `/scripts` directory.
 
+## 📋 Smart Contract Deployment
+
+**SealGuard smart contracts are deployed on Filecoin Calibration Testnet:**
+
+| Contract | Address | Purpose |
+|----------|---------|----------|
+| **SealGuardRegistry** | `0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F` | Core document management and verification |
+| **SealGuardAccessControl** | `0xF565086417Bf8ba76e4FaFC9F0088818eA027539` | Role-based access control system |
+| **SealGuardMultiSig** | `0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8` | Multi-signature verification workflows |
+
+**Network Details:**
+- **Network**: Filecoin Calibration Testnet
+- **Chain ID**: 314159
+- **RPC URL**: `https://api.calibration.node.glif.io/rpc/v1`
+- **Deployer**: `0x5CbD1ABe5029c5c717038f86C31B706f027640AB`
+- **Deployment Date**: September 20, 2025
+
+### Contract Verification
+
+To verify the contracts on a block explorer, use:
+
+```bash
+# Verify SealGuardRegistry
+npx hardhat verify --network filecoinCalibration 0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F 0x5CbD1ABe5029c5c717038f86C31B706f027640AB 0xF565086417Bf8ba76e4FaFC9F0088818eA027539
+
+# Verify SealGuardAccessControl
+npx hardhat verify --network filecoinCalibration 0xF565086417Bf8ba76e4FaFC9F0088818eA027539
+
+# Verify SealGuardMultiSig
+npx hardhat verify --network filecoinCalibration 0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8 0xF565086417Bf8ba76e4FaFC9F0088818eA027539 0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F
+```
+
+### Frontend Configuration
+
+Update your frontend environment variables with these contract addresses:
+
+```env
+NEXT_PUBLIC_REGISTRY_CONTRACT=0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F
+NEXT_PUBLIC_ACCESS_CONTROL_CONTRACT=0xF565086417Bf8ba76e4FaFC9F0088818eA027539
+NEXT_PUBLIC_MULTISIG_CONTRACT=0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8
+NEXT_PUBLIC_FILECOIN_RPC_URL=https://api.calibration.node.glif.io/rpc/v1
+NEXT_PUBLIC_CHAIN_ID=314159
+```
+
 ---
 
 ## 1. Problem Statement

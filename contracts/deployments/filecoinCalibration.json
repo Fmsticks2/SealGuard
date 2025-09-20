@@ -2,15 +2,19 @@
   "network": "filecoinCalibration",
   "chainId": "314159",
   "deployer": "0x5CbD1ABe5029c5c717038f86C31B706f027640AB",
-  "timestamp": "2025-09-10T21:03:35.455Z",
+  "timestamp": "2025-09-20T18:50:46.513Z",
   "contracts": {
     "SealGuardRegistry": {
-      "address": "0xB6EE67F0c15f949433d0e484F60f70f1828458e3",
-      "transactionHash": "0x36eefa3785ae2e8dba90fa5e57bf2f81a1ba75343199a54c89a5f6a9281149bb"
+      "address": "0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F",
+      "transactionHash": "0x6692a34e984841428300ca83a42af5a84ba97e1c7b2959e41c52009d21bbdbf4"
     },
     "SealGuardAccessControl": {
-      "address": "0xdc6c396319895dA489b0Cd145A4c5D660b9e10F6",
-      "transactionHash": "0x9bd3916c349858b75b2ce52b596162084d8a224f499533d6cd0f249024a8fccf"
+      "address": "0xF565086417Bf8ba76e4FaFC9F0088818eA027539",
+      "transactionHash": "0x15da46ba00e1933b132713c4cca4ae95127d60baf17514f45b8d77803e330b28"
+    },
+    "SealGuardMultiSig": {
+      "address": "0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8",
+      "transactionHash": "0x6c2d09ce62e34b3c0f8dd59a5d489b6a750959ba93d7c951cc9d4246c72934bc"
     }
   }
 }
