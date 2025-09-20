@@ -8,12 +8,8 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { FileUpload } from '@/components/upload/FileUpload'
 
 export default function UploadPage() {
-  const { user, isLoading, isAuthenticated, checkAuth } = useAuthStore()
+  const { user, isLoading, isAuthenticated } = useAuthStore()
   const router = useRouter()
-
-  useEffect(() => {
-    checkAuth()
-  }, [])
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

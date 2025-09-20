@@ -17,8 +17,8 @@ const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "your-proj
 const metadata = {
   name: "SealGuard",
   description: "Decentralized Document Verification Platform",
-  url: "https://sealguard.app",
-  icons: ["https://sealguard.app/icon.png"],
+  url: "https://seal-guard.vercel.app",
+  icons: ["https://seal-guard.vercel.app/icon.png"],
 };
 
 // Define Filecoin Calibration network

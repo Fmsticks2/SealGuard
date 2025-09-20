@@ -7,12 +7,8 @@ import { LandingPage } from '@/components/LandingPage'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 export default function HomePage() {
-  const { user, isLoading, checkAuth } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const router = useRouter()
-
-  useEffect(() => {
-    checkAuth()
-  }, [])
 
   useEffect(() => {
     if (!isLoading && user) {
