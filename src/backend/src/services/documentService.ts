@@ -1,10 +1,36 @@
-import { db } from '../config/database';
 import { logger } from '../utils/logger';
-import { Document, User, VerificationRecord } from '@prisma/client';
-// DocumentCategory enum values: 'LEGAL', 'FINANCIAL', 'MEDICAL', 'ACADEMIC', 'GOVERNMENT', 'OTHER'
-// DocumentStatus enum values: 'PENDING', 'ACTIVE', 'ARCHIVED', 'DELETED'
 import crypto from 'crypto';
 import path from 'path';
+import { User } from './authService';
+
+export interface Document {
+  id: string;
+  fileName: string;
+  originalName: string;
+  fileSize: number;
+  mimeType: string;
+  ipfsHash: string;
+  ipfsUrl: string;
+  description?: string;
+  tags: string[];
+  category: string;
+  isPublic: boolean;
+  encryptionKey?: string;
+  uploaderId: string;
+  status: string;
+  uploadedAt: Date;
+  updatedAt: Date;
+  expiresAt?: Date;
+}
+
+export interface VerificationRecord {
+  id: string;
+  documentId: string;
+  verifierId: string;
+  status: string;
+  notes?: string;
+  createdAt: Date;
+}
 
 export interface CreateDocumentRequest {
   fileName: string;
@@ -49,6 +75,11 @@ export interface DocumentWithRelations extends Document {
   };
 }
 
+// In-memory storage (replace with Redis or external service in production)
+const documentStore = new Map<string, Document>();
+const verificationStore = new Map<string, VerificationRecord[]>();
+const ipfsHashIndex = new Map<string, string>(); // ipfsHash -> documentId
+
 class DocumentService {
   /**
    * Calculate file checksum
@@ -60,7 +91,7 @@ class DocumentService {
   /**
    * Determine document category from file type
    */
-  categorizeDocument(fileName: string, mimeType: string): string {
+  categorizeDocument(fileName: string, _mimeType: string): string {
     const extension = path.extname(fileName).toLowerCase();
 
     // Legal documents
@@ -72,83 +103,97 @@ class DocumentService {
     }
 
     // Medical documents
-    if (fileName.toLowerCase().match(/(medical|health|patient|diagnosis|prescription)/) ||
-        mimeType.includes('medical')) {
+    if (extension.match(/\.(pdf|doc|docx|jpg|jpeg|png)$/) &&
+        (fileName.toLowerCase().includes('medical') ||
+         fileName.toLowerCase().includes('health') ||
+         fileName.toLowerCase().includes('patient'))) {
       return 'MEDICAL';
     }
 
     // Financial documents
-    if (fileName.toLowerCase().match(/(invoice|receipt|financial|bank|tax|statement)/) ||
-        mimeType.includes('financial')) {
+    if (extension.match(/\.(pdf|xls|xlsx|csv)$/) &&
+        (fileName.toLowerCase().includes('financial') ||
+         fileName.toLowerCase().includes('invoice') ||
+         fileName.toLowerCase().includes('receipt'))) {
       return 'FINANCIAL';
     }
 
     // Identity documents
-    if (fileName.toLowerCase().match(/(id|passport|license|identity|ssn)/) ||
-        mimeType.includes('identity')) {
+    if (extension.match(/\.(pdf|jpg|jpeg|png)$/) &&
+        (fileName.toLowerCase().includes('id') ||
+         fileName.toLowerCase().includes('passport') ||
+         fileName.toLowerCase().includes('license'))) {
       return 'IDENTITY';
-    }
-
-    // Certificates
-    if (fileName.toLowerCase().match(/(certificate|cert|diploma|award)/) ||
-        mimeType.includes('certificate')) {
-      return 'CERTIFICATE';
     }
 
     return 'OTHER';
   }
 
   /**
-   * Create a new document record
+   * Create a new document
    */
   async createDocument(documentData: CreateDocumentRequest): Promise<Document | null> {
     try {
-      const category = documentData.category || this.categorizeDocument(documentData.fileName, documentData.mimeType);
+      const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date();
       
-      const document = await db.document.create({
-        data: {
-          ...documentData,
-          category,
-          status: 'PENDING',
-          tags: documentData.tags ? documentData.tags.join(',') : '',
-          isPublic: documentData.isPublic || false,
-        } as any,
-      });
+      const document: Document = {
+        id: documentId,
+        fileName: documentData.fileName,
+        originalName: documentData.originalName,
+        fileSize: documentData.fileSize,
+        mimeType: documentData.mimeType,
+        ipfsHash: documentData.ipfsHash,
+        ipfsUrl: documentData.ipfsUrl,
+        description: documentData.description,
+        tags: documentData.tags || [],
+        category: documentData.category || this.categorizeDocument(documentData.originalName, documentData.mimeType),
+        isPublic: documentData.isPublic || false,
+        encryptionKey: documentData.encryptionKey,
+        uploaderId: documentData.uploaderId,
+        status: 'ACTIVE',
+        uploadedAt: now,
+        updatedAt: now,
+        expiresAt: documentData.expiresAt
+      };
 
-      logger.info(`Document created: ${document.id} by user ${documentData.uploaderId}`);
+      // Store document
+      documentStore.set(documentId, document);
+      ipfsHashIndex.set(documentData.ipfsHash, documentId);
+      
+      // Initialize empty verifications
+      verificationStore.set(documentId, []);
+
+      logger.info(`Document created: ${documentId}`);
       return document;
     } catch (error) {
-      logger.error('Create document failed:', error);
+      logger.error('Failed to create document:', error);
       return null;
     }
   }
 
   /**
-   * Get document by ID with relations
+   * Get document by ID
    */
   async getDocumentById(documentId: string, includeRelations = false): Promise<DocumentWithRelations | null> {
     try {
-      const queryOptions: any = {
-        where: { id: documentId },
-      };
+      const document = documentStore.get(documentId);
+      if (!document) return null;
 
       if (includeRelations) {
-        queryOptions.include = {
-          uploader: true,
-          verifications: {
-            orderBy: { createdAt: 'desc' },
-          },
-          _count: {
-            select: { verifications: true },
-          },
+        // This would require authService integration for uploader info
+        const verifications = verificationStore.get(documentId) || [];
+        return {
+          ...document,
+          uploader: { id: document.uploaderId } as User, // Simplified
+          verifications,
+          _count: { verifications: verifications.length }
         };
       }
 
-      const document = await db.document.findUnique(queryOptions) as DocumentWithRelations | null;
-
-      return document;
+      return document as DocumentWithRelations;
     } catch (error) {
-      logger.error('Get document by ID failed:', error);
+      logger.error('Failed to get document by ID:', error);
       return null;
     }
   }
@@ -158,11 +203,12 @@ class DocumentService {
    */
   async getDocumentByIpfsHash(ipfsHash: string): Promise<Document | null> {
     try {
-      return await db.document.findUnique({
-        where: { ipfsHash },
-      });
+      const documentId = ipfsHashIndex.get(ipfsHash);
+      if (!documentId) return null;
+      
+      return documentStore.get(documentId) || null;
     } catch (error) {
-      logger.error('Get document by IPFS hash failed:', error);
+      logger.error('Failed to get document by IPFS hash:', error);
       return null;
     }
   }
@@ -172,18 +218,19 @@ class DocumentService {
    */
   async updateDocument(documentId: string, updateData: UpdateDocumentRequest): Promise<Document | null> {
     try {
-      const document = await db.document.update({
-        where: { id: documentId },
-        data: {
-          ...updateData,
-          updatedAt: new Date(),
-        } as any,
-      });
+      const document = documentStore.get(documentId);
+      if (!document) return null;
 
-      logger.info(`Document updated: ${documentId}`);
-      return document;
+      const updatedDocument = {
+        ...document,
+        ...updateData,
+        updatedAt: new Date()
+      };
+
+      documentStore.set(documentId, updatedDocument);
+      return updatedDocument;
     } catch (error) {
-      logger.error('Update document failed:', error);
+      logger.error('Failed to update document:', error);
       return null;
     }
   }
@@ -193,24 +240,22 @@ class DocumentService {
    */
   async updateDocumentStatus(documentId: string, status: string): Promise<Document | null> {
     try {
-      const document = await db.document.update({
-        where: { id: documentId },
-        data: {
-          status,
-          updatedAt: new Date(),
-        },
-      });
+      const document = documentStore.get(documentId);
+      if (!document) return null;
 
-      logger.info(`Document status updated: ${documentId} -> ${status}`);
+      document.status = status;
+      document.updatedAt = new Date();
+      documentStore.set(documentId, document);
+      
       return document;
     } catch (error) {
-      logger.error('Update document status failed:', error);
+      logger.error('Failed to update document status:', error);
       return null;
     }
   }
 
   /**
-   * Search documents with filters
+   * Search documents
    */
   async searchDocuments(
     filters: DocumentSearchFilters,
@@ -219,86 +264,65 @@ class DocumentService {
     includeRelations = false
   ): Promise<{ documents: DocumentWithRelations[]; total: number; pages: number } | null> {
     try {
-      const skip = (page - 1) * limit;
-      
-      const where: any = {};
+      let documents = Array.from(documentStore.values());
 
+      // Apply filters
       if (filters.uploaderId) {
-        where.uploaderId = filters.uploaderId;
+        documents = documents.filter(doc => doc.uploaderId === filters.uploaderId);
       }
-
       if (filters.category) {
-        where.category = filters.category;
+        documents = documents.filter(doc => doc.category === filters.category);
       }
-
       if (filters.status) {
-        where.status = filters.status;
+        documents = documents.filter(doc => doc.status === filters.status);
       }
-
       if (filters.isPublic !== undefined) {
-        where.isPublic = filters.isPublic;
+        documents = documents.filter(doc => doc.isPublic === filters.isPublic);
       }
-
       if (filters.tags && filters.tags.length > 0) {
-        where.tags = {
-          hasSome: filters.tags,
-        };
+        documents = documents.filter(doc => 
+          filters.tags!.some(tag => doc.tags.includes(tag))
+        );
       }
-
-      if (filters.dateFrom || filters.dateTo) {
-        where.uploadedAt = {};
-        if (filters.dateFrom) {
-          where.uploadedAt.gte = filters.dateFrom;
-        }
-        if (filters.dateTo) {
-          where.uploadedAt.lte = filters.dateTo;
-        }
-      }
-
       if (filters.search) {
-        where.OR = [
-          { fileName: { contains: filters.search, mode: 'insensitive' } },
-          { originalName: { contains: filters.search, mode: 'insensitive' } },
-          { description: { contains: filters.search, mode: 'insensitive' } },
-        ];
+        const searchLower = filters.search.toLowerCase();
+        documents = documents.filter(doc => 
+          doc.fileName.toLowerCase().includes(searchLower) ||
+          doc.originalName.toLowerCase().includes(searchLower) ||
+          (doc.description && doc.description.toLowerCase().includes(searchLower))
+        );
       }
 
-      const queryOptions: any = {
-        where,
-        skip,
-        take: limit,
-        orderBy: { uploadedAt: 'desc' },
-      };
+      // Sort by upload date (newest first)
+      documents.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
 
-      if (includeRelations) {
-        queryOptions.include = {
-          uploader: true,
-          verifications: {
-            orderBy: { createdAt: 'desc' },
-            take: 5, // Limit verifications to avoid large payloads
-          },
-          _count: {
-            select: { verifications: true },
-          },
-        };
-      }
-
-      const [documents, total] = await Promise.all([
-        db.document.findMany(queryOptions) as Promise<DocumentWithRelations[]>,
-        db.document.count({ where }),
-      ]);
-
+      const total = documents.length;
       const pages = Math.ceil(total / limit);
+      const startIndex = (page - 1) * limit;
+      const paginatedDocs = documents.slice(startIndex, startIndex + limit);
 
-      return { documents, total, pages };
+      const result = paginatedDocs.map(doc => {
+        if (includeRelations) {
+          const verifications = verificationStore.get(doc.id) || [];
+          return {
+            ...doc,
+            uploader: { id: doc.uploaderId } as User,
+            verifications,
+            _count: { verifications: verifications.length }
+          };
+        }
+        return doc as DocumentWithRelations;
+      });
+
+      return { documents: result, total, pages };
     } catch (error) {
-      logger.error('Search documents failed:', error);
+      logger.error('Failed to search documents:', error);
       return null;
     }
   }
 
   /**
-   * Get user's documents
+   * Get user documents
    */
   async getUserDocuments(
     userId: string,
@@ -306,12 +330,12 @@ class DocumentService {
     limit = 20,
     status?: string
   ): Promise<{ documents: DocumentWithRelations[]; total: number; pages: number } | null> {
-    const filters: DocumentSearchFilters = { uploaderId: userId };
-    if (status) {
-      filters.status = status;
-    }
-
-    return this.searchDocuments(filters, page, limit, true);
+    return this.searchDocuments(
+      { uploaderId: userId, status },
+      page,
+      limit,
+      true
+    );
   }
 
   /**
@@ -322,48 +346,49 @@ class DocumentService {
     limit = 20,
     category?: string
   ): Promise<{ documents: DocumentWithRelations[]; total: number; pages: number } | null> {
-    const filters: DocumentSearchFilters = { isPublic: true };
-    if (category) {
-      filters.category = category;
-    }
-
-    return this.searchDocuments(filters, page, limit, true);
+    return this.searchDocuments(
+      { isPublic: true, category, status: 'ACTIVE' },
+      page,
+      limit,
+      true
+    );
   }
 
   /**
-   * Delete document (soft delete by updating status)
+   * Delete document (soft delete)
    */
   async deleteDocument(documentId: string): Promise<boolean> {
     try {
-      await db.document.update({
-        where: { id: documentId },
-        data: {
-          status: 'ARCHIVED',
-          updatedAt: new Date(),
-        },
-      });
+      const document = documentStore.get(documentId);
+      if (!document) return false;
 
-      logger.info(`Document archived: ${documentId}`);
+      document.status = 'DELETED';
+      document.updatedAt = new Date();
+      documentStore.set(documentId, document);
+      
       return true;
     } catch (error) {
-      logger.error('Delete document failed:', error);
+      logger.error('Failed to delete document:', error);
       return false;
     }
   }
 
   /**
-   * Hard delete document (permanent removal)
+   * Permanently delete document
    */
   async permanentDeleteDocument(documentId: string): Promise<boolean> {
     try {
-      await db.document.delete({
-        where: { id: documentId },
-      });
+      const document = documentStore.get(documentId);
+      if (!document) return false;
 
-      logger.info(`Document permanently deleted: ${documentId}`);
+      // Remove from all stores
+      documentStore.delete(documentId);
+      verificationStore.delete(documentId);
+      ipfsHashIndex.delete(document.ipfsHash);
+      
       return true;
     } catch (error) {
-      logger.error('Permanent delete document failed:', error);
+      logger.error('Failed to permanently delete document:', error);
       return false;
     }
   }
@@ -373,44 +398,29 @@ class DocumentService {
    */
   async getDocumentStats(userId?: string): Promise<any> {
     try {
-      const where = userId ? { uploaderId: userId } : {};
+      let documents = Array.from(documentStore.values());
+      
+      if (userId) {
+        documents = documents.filter(doc => doc.uploaderId === userId);
+      }
 
-      const [total, byStatus, byCategory, recentUploads] = await Promise.all([
-        db.document.count({ where }),
-        db.document.groupBy({
-          by: ['status'],
-          where,
-          _count: { status: true },
-        }),
-        db.document.groupBy({
-          by: ['category'],
-          where,
-          _count: { category: true },
-        }),
-        db.document.count({
-          where: {
-            ...where,
-            uploadedAt: {
-              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-            },
-          },
-        }),
-      ]);
-
-      return {
-        total,
-        byStatus: byStatus.reduce((acc, item) => {
-          acc[item.status] = item._count.status;
-          return acc;
-        }, {} as Record<string, number>),
-        byCategory: byCategory.reduce((acc, item) => {
-          acc[item.category] = item._count.category;
-          return acc;
-        }, {} as Record<string, number>),
-        recentUploads,
+      const stats = {
+        total: documents.length,
+        active: documents.filter(doc => doc.status === 'ACTIVE').length,
+        deleted: documents.filter(doc => doc.status === 'DELETED').length,
+        public: documents.filter(doc => doc.isPublic).length,
+        private: documents.filter(doc => !doc.isPublic).length,
+        categories: {} as Record<string, number>
       };
+
+      // Count by category
+      documents.forEach(doc => {
+        stats.categories[doc.category] = (stats.categories[doc.category] || 0) + 1;
+      });
+
+      return stats;
     } catch (error) {
-      logger.error('Get document stats failed:', error);
+      logger.error('Failed to get document stats:', error);
       return null;
     }
   }
@@ -420,38 +430,46 @@ class DocumentService {
    */
   async canUserAccessDocument(userId: string, documentId: string): Promise<boolean> {
     try {
-      const document = await db.document.findUnique({
-        where: { id: documentId },
-        include: { uploader: true },
-      });
-
-      if (!document) {
-        return false;
-      }
+      const document = documentStore.get(documentId);
+      if (!document) return false;
 
       // Owner can always access
-      if (document.uploaderId === userId) {
-        return true;
-      }
-
+      if (document.uploaderId === userId) return true;
+      
       // Public documents can be accessed by anyone
-      if (document.isPublic) {
-        return true;
-      }
-
-      // Check if user has admin/moderator role
-      const user = await db.user.findUnique({
-        where: { id: userId },
-      });
-
-      if (user && (user.role === 'ADMIN' || user.role === 'MODERATOR')) {
-        return true;
-      }
-
+      if (document.isPublic && document.status === 'ACTIVE') return true;
+      
       return false;
     } catch (error) {
-      logger.error('Check document access failed:', error);
+      logger.error('Failed to check document access:', error);
       return false;
+    }
+  }
+
+  /**
+   * Add verification record
+   */
+  async addVerification(documentId: string, verifierId: string, status: string, notes?: string): Promise<VerificationRecord | null> {
+    try {
+      const verificationId = `ver_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const verification: VerificationRecord = {
+        id: verificationId,
+        documentId,
+        verifierId,
+        status,
+        notes,
+        createdAt: new Date()
+      };
+
+      const verifications = verificationStore.get(documentId) || [];
+      verifications.push(verification);
+      verificationStore.set(documentId, verifications);
+
+      return verification;
+    } catch (error) {
+      logger.error('Failed to add verification:', error);
+      return null;
     }
   }
 }

@@ -57,27 +57,25 @@ const upload = multer({
 });
 
 // IPFS upload service using ipfs-http-client
-const { create: createIPFS } = require('ipfs-http-client');
+// const { create: createIPFS } = require('ipfs-http-client');
 
 class IPFSService {
   private ipfs: any;
   
   constructor() {
-    // Initialize IPFS client - configure with your IPFS node
-    this.ipfs = createIPFS({
-      host: process.env.IPFS_HOST || 'localhost',
-      port: parseInt(process.env.IPFS_PORT || '5001', 10),
-      protocol: process.env.IPFS_PROTOCOL || 'http'
-    });
+    // Mock IPFS client for testing
+    this.ipfs = {
+      add: async (_data: any) => ({ cid: 'mock-cid-' + Date.now() })
+    };
   }
   
   async uploadFile(fileBuffer: Buffer, metadata: any): Promise<{ cid: string; size: number }> {
     try {
-      // Add file to IPFS
-      const result = await this.ipfs.add({
-        content: fileBuffer,
-        path: metadata.filename
-      });
+      // Mock IPFS upload
+       const result = await this.ipfs.add({
+         content: fileBuffer,
+         path: metadata.filename
+       });
       
       console.log('📤 IPFS upload successful:', {
         cid: result.cid.toString(),

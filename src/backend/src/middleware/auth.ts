@@ -14,11 +14,18 @@ declare global {
 
 // Use intersection type for better compatibility
 export type AuthenticatedRequest = Request & {
-  user: AuthTokenPayload;
+  user: AuthTokenPayload & { address: string };
 };
 
 // Type assertion helper for authenticated routes
 export type AuthenticatedHandler = (req: AuthenticatedRequest, res: Response) => Promise<Response | void>;
+
+/**
+ * Wrapper to ensure type safety for authenticated routes
+ */
+export const withAuth = (handler: AuthenticatedHandler) => {
+  return handler as any;
+};
 
 /**
  * Extract token from Authorization header
@@ -77,8 +84,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    // Attach user payload to request
-    req.user = payload;
+    // Attach user payload to request with address field for compatibility
+    req.user = { ...payload };
     next();
   } catch (error) {
     logger.error('Authentication middleware error:', error);

@@ -1,8 +1,18 @@
 import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
-import { db } from '../config/database';
 import { logger } from '../utils/logger';
-import { User } from '@prisma/client';
+
+export interface User {
+  id: string;
+  walletAddress: string;
+  role: string;
+  name?: string;
+  email?: string;
+  isActive: boolean;
+  lastLoginAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface AuthTokenPayload {
   userId: string;
@@ -26,6 +36,10 @@ export interface RegisterRequest {
   email?: string;
   name?: string;
 }
+
+// In-memory user storage (replace with Redis or external service in production)
+const userStore = new Map<string, User>();
+const walletToUserMap = new Map<string, string>();
 
 class AuthService {
   private readonly JWT_SECRET: string;
@@ -89,102 +103,105 @@ class AuthService {
   }
 
   /**
-   * Register a new user with wallet authentication
+   * Register a new user
    */
   async register(registerData: RegisterRequest): Promise<{ user: User; token: string } | null> {
     try {
       const { walletAddress, signature, message, email, name } = registerData;
-
+      
       // Verify signature
       const isValidSignature = await this.verifyWalletSignature(walletAddress, message, signature);
       if (!isValidSignature) {
-        logger.warn(`Invalid signature for wallet registration: ${walletAddress}`);
+        logger.warn(`Invalid signature for wallet: ${walletAddress}`);
         return null;
       }
 
       // Check if user already exists
-      const existingUser = await db.user.findUnique({
-        where: { walletAddress: walletAddress.toLowerCase() },
-      });
-
-      if (existingUser) {
-        logger.warn(`User already exists with wallet: ${walletAddress}`);
+      const normalizedAddress = walletAddress.toLowerCase();
+      if (walletToUserMap.has(normalizedAddress)) {
+        logger.warn(`User already exists for wallet: ${walletAddress}`);
         return null;
       }
 
       // Create new user
-      const user = await db.user.create({
-        data: {
-          walletAddress: walletAddress.toLowerCase(),
-          email: email ? email.toLowerCase() : null,
-          name: name || null,
-          role: 'USER',
-          isActive: true,
-          lastLoginAt: new Date(),
-        } as any,
-      });
+      const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date();
+      
+      const user: User = {
+        id: userId,
+        walletAddress: normalizedAddress,
+        role: 'USER',
+        name,
+        email,
+        isActive: true,
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      // Store user
+      userStore.set(userId, user);
+      walletToUserMap.set(normalizedAddress, userId);
 
       // Generate token
       const token = this.generateToken({
         userId: user.id,
         walletAddress: user.walletAddress,
-        role: user.role,
+        role: user.role
       });
 
-      logger.info(`New user registered: ${user.id} (${walletAddress})`);
+      logger.info(`User registered successfully: ${walletAddress}`);
       return { user, token };
     } catch (error) {
-      logger.error('User registration failed:', error);
+      logger.error('Registration failed:', error);
       return null;
     }
   }
 
   /**
-   * Login user with wallet authentication
+   * Login user
    */
   async login(loginData: LoginRequest): Promise<{ user: User; token: string } | null> {
     try {
       const { walletAddress, signature, message } = loginData;
-
+      
       // Verify signature
       const isValidSignature = await this.verifyWalletSignature(walletAddress, message, signature);
       if (!isValidSignature) {
-        logger.warn(`Invalid signature for wallet login: ${walletAddress}`);
+        logger.warn(`Invalid signature for wallet: ${walletAddress}`);
         return null;
       }
 
       // Find user
-      const user = await db.user.findUnique({
-        where: { walletAddress: walletAddress.toLowerCase() },
-      });
-
-      if (!user) {
+      const normalizedAddress = walletAddress.toLowerCase();
+      const userId = walletToUserMap.get(normalizedAddress);
+      if (!userId) {
         logger.warn(`User not found for wallet: ${walletAddress}`);
         return null;
       }
 
-      if (!user.isActive) {
-        logger.warn(`Inactive user attempted login: ${user.id}`);
+      const user = userStore.get(userId);
+      if (!user || !user.isActive) {
+        logger.warn(`User inactive or not found: ${walletAddress}`);
         return null;
       }
 
       // Update last login
-      const updatedUser = await db.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() },
-      });
+      user.lastLoginAt = new Date();
+      user.updatedAt = new Date();
+      userStore.set(userId, user);
 
       // Generate token
       const token = this.generateToken({
         userId: user.id,
         walletAddress: user.walletAddress,
-        role: user.role,
+        role: user.role
       });
 
-      logger.info(`User logged in: ${user.id} (${walletAddress})`);
-      return { user: updatedUser, token };
+      logger.info(`User logged in successfully: ${walletAddress}`);
+      return { user, token };
     } catch (error) {
-      logger.error('User login failed:', error);
+      logger.error('Login failed:', error);
       return null;
     }
   }
@@ -194,11 +211,9 @@ class AuthService {
    */
   async getUserById(userId: string): Promise<User | null> {
     try {
-      return await db.user.findUnique({
-        where: { id: userId },
-      });
+      return userStore.get(userId) || null;
     } catch (error) {
-      logger.error('Get user by ID failed:', error);
+      logger.error('Failed to get user by ID:', error);
       return null;
     }
   }
@@ -208,46 +223,54 @@ class AuthService {
    */
   async getUserByWallet(walletAddress: string): Promise<User | null> {
     try {
-      return await db.user.findUnique({
-        where: { walletAddress: walletAddress.toLowerCase() },
-      });
+      const normalizedAddress = walletAddress.toLowerCase();
+      const userId = walletToUserMap.get(normalizedAddress);
+      if (!userId) return null;
+      
+      return userStore.get(userId) || null;
     } catch (error) {
-      logger.error('Get user by wallet failed:', error);
+      logger.error('Failed to get user by wallet:', error);
       return null;
     }
   }
 
   /**
-   * Update user profile
+   * Update user
    */
   async updateUser(userId: string, updateData: Partial<Pick<User, 'name' | 'email'>>): Promise<User | null> {
     try {
-      return await db.user.update({
-        where: { id: userId },
-        data: {
-          ...updateData,
-          email: updateData.email ? updateData.email.toLowerCase() : undefined,
-          updatedAt: new Date(),
-        } as any,
-      });
+      const user = userStore.get(userId);
+      if (!user) return null;
+
+      const updatedUser = {
+        ...user,
+        ...updateData,
+        updatedAt: new Date()
+      };
+
+      userStore.set(userId, updatedUser);
+      return updatedUser;
     } catch (error) {
-      logger.error('Update user failed:', error);
+      logger.error('Failed to update user:', error);
       return null;
     }
   }
 
   /**
-   * Deactivate user account
+   * Deactivate user
    */
   async deactivateUser(userId: string): Promise<boolean> {
     try {
-      await db.user.update({
-        where: { id: userId },
-        data: { isActive: false },
-      });
+      const user = userStore.get(userId);
+      if (!user) return false;
+
+      user.isActive = false;
+      user.updatedAt = new Date();
+      userStore.set(userId, user);
+      
       return true;
     } catch (error) {
-      logger.error('Deactivate user failed:', error);
+      logger.error('Failed to deactivate user:', error);
       return false;
     }
   }
@@ -256,14 +279,29 @@ class AuthService {
    * Check if user has required role
    */
   hasRole(user: User, requiredRole: string): boolean {
-    const roleHierarchy: { [key: string]: number } = {
-      'USER': 1,
-      'AUDITOR': 2,
-      'MODERATOR': 3,
-      'ADMIN': 4,
+    const roleHierarchy = {
+      'SUPER_ADMIN': 4,
+      'ADMIN': 3,
+      'MODERATOR': 2,
+      'USER': 1
     };
+    
+    const userLevel = roleHierarchy[user.role as keyof typeof roleHierarchy] || 0;
+    const requiredLevel = roleHierarchy[requiredRole as keyof typeof roleHierarchy] || 0;
+    
+    return userLevel >= requiredLevel;
+  }
 
-    return (roleHierarchy[user.role] || 0) >= (roleHierarchy[requiredRole] || 0);
+  /**
+   * Get all users (for admin)
+   */
+  async getAllUsers(): Promise<User[]> {
+    try {
+      return Array.from(userStore.values());
+    } catch (error) {
+      logger.error('Failed to get all users:', error);
+      return [];
+    }
   }
 }
 

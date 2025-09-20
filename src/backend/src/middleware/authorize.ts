@@ -8,7 +8,7 @@ import logger from '../utils/logger';
  * Creates middleware that checks if user has required role
  */
 export const authorize = (...allowedRoles: string[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): Response | void => {
     try {
       // Check if user is authenticated
       if (!req.user) {

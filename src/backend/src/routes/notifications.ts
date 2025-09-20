@@ -1,12 +1,11 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { logger } from '../utils/logger';
 import {
   authenticate,
-  AuthenticatedRequest
+  AuthenticatedRequest,
+  withAuth
 } from '../middleware/auth';
-import { authorize } from '../middleware/authorize';
-// Removed enum imports - using string literals instead
-import { db } from '../config/database';
+
 import { EventEmitter } from 'events';
 
 const router = Router();
@@ -14,8 +13,11 @@ const router = Router();
 // Event emitter for real-time notifications
 export const notificationEmitter = new EventEmitter();
 
+// In-memory notification storage (replace with Redis or external service in production)
+const notificationStore = new Map<string, any[]>();
+
 /**
- * Notification Service
+ * Notification Service - Contract-only mode
  */
 export class NotificationService {
   /**
@@ -39,27 +41,24 @@ export class NotificationService {
     actionUrl?: string;
   }) {
     try {
-      const notification = await db.notification.create({
-        data: {
-          userId,
-          type,
-          title,
-          message,
-          priority,
-          metadata,
-          actionUrl,
-          isRead: false
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              walletAddress: true,
-              username: true
-            }
-          }
-        }
-      });
+      const notification = {
+        id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        type,
+        title,
+        message,
+        priority,
+        metadata,
+        actionUrl,
+        isRead: false,
+        createdAt: new Date().toISOString()
+      };
+
+      // Store in memory
+      if (!notificationStore.has(userId)) {
+        notificationStore.set(userId, []);
+      }
+      notificationStore.get(userId)!.push(notification);
 
       // Emit real-time notification
       notificationEmitter.emit('notification', {
@@ -76,38 +75,17 @@ export class NotificationService {
   }
 
   /**
-   * Create bulk notifications
+   * Get notifications for a user
    */
-  static async createBulkNotifications(notifications: Array<{
-    userId: string;
-    type: string;
-    title: string;
-    message: string;
-    priority?: string;
-    metadata?: any;
-    actionUrl?: string;
-  }>) {
+  static async getUserNotifications(userId: string, limit: number = 50) {
     try {
-      const createdNotifications = await db.notification.createMany({
-        data: notifications.map(notif => ({
-          ...notif,
-          priority: notif.priority || NotificationPriority.MEDIUM,
-          metadata: notif.metadata || {},
-          isRead: false
-        }))
-      });
-
-      // Emit bulk notification event
-      notificationEmitter.emit('bulk_notification', {
-        count: createdNotifications.count,
-        userIds: notifications.map(n => n.userId)
-      });
-
-      logger.info(`Created ${createdNotifications.count} bulk notifications`);
-      return createdNotifications;
+      const userNotifications = notificationStore.get(userId) || [];
+      return userNotifications
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, limit);
     } catch (error) {
-      logger.error('Failed to create bulk notifications:', error);
-      return null;
+      logger.error('Failed to get user notifications:', error);
+      return [];
     }
   }
 
@@ -116,18 +94,16 @@ export class NotificationService {
    */
   static async markAsRead(notificationId: string, userId: string) {
     try {
-      const notification = await db.notification.updateMany({
-        where: {
-          id: notificationId,
-          userId
-        },
-        data: {
-          isRead: true,
-          readAt: new Date()
-        }
-      });
-
-      return notification.count > 0;
+      const userNotifications = notificationStore.get(userId) || [];
+      const notification = userNotifications.find(n => n.id === notificationId);
+      
+      if (notification) {
+        notification.isRead = true;
+        notification.readAt = new Date().toISOString();
+        return true;
+      }
+      
+      return false;
     } catch (error) {
       logger.error('Failed to mark notification as read:', error);
       return false;
@@ -139,18 +115,18 @@ export class NotificationService {
    */
   static async markAllAsRead(userId: string) {
     try {
-      const result = await db.notification.updateMany({
-        where: {
-          userId,
-          isRead: false
-        },
-        data: {
-          isRead: true,
-          readAt: new Date()
+      const userNotifications = notificationStore.get(userId) || [];
+      let count = 0;
+      
+      userNotifications.forEach(notification => {
+        if (!notification.isRead) {
+          notification.isRead = true;
+          notification.readAt = new Date().toISOString();
+          count++;
         }
       });
-
-      return result.count;
+      
+      return count;
     } catch (error) {
       logger.error('Failed to mark all notifications as read:', error);
       return 0;
@@ -158,24 +134,38 @@ export class NotificationService {
   }
 
   /**
-   * Delete old notifications
+   * Get unread notification count
+   */
+  static async getUnreadCount(userId: string) {
+    try {
+      const userNotifications = notificationStore.get(userId) || [];
+      return userNotifications.filter(n => !n.isRead).length;
+    } catch (error) {
+      logger.error('Failed to get unread count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Clean up old notifications (older than specified days)
    */
   static async cleanupOldNotifications(daysOld: number = 30) {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+      let totalCleaned = 0;
 
-      const result = await db.notification.deleteMany({
-        where: {
-          createdAt: {
-            lt: cutoffDate
-          },
-          isRead: true
-        }
-      });
+      for (const [userId, notifications] of notificationStore.entries()) {
+        const filtered = notifications.filter(n => 
+          new Date(n.createdAt) > cutoffDate
+        );
+        const cleaned = notifications.length - filtered.length;
+        totalCleaned += cleaned;
+        notificationStore.set(userId, filtered);
+      }
 
-      logger.info(`Cleaned up ${result.count} old notifications`);
-      return result.count;
+      logger.info(`Cleaned up ${totalCleaned} old notifications`);
+      return totalCleaned;
     } catch (error) {
       logger.error('Failed to cleanup old notifications:', error);
       return 0;
@@ -184,254 +174,105 @@ export class NotificationService {
 }
 
 /**
- * GET /notifications
- * Get user notifications with filtering and pagination
+ * Routes
  */
+
+// Get user notifications
 router.get('/',
   authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
+  withAuth(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const {
-        page = 1,
-        limit = 20,
-        type,
-        priority,
-        isRead,
-        dateFrom,
-        dateTo
-      } = req.query;
-
-      // Build filters
-      const where: any = {
-        userId: req.user.userId
-      };
+      const userId = req.user!.address;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const notifications = await NotificationService.getUserNotifications(userId, limit);
       
-      if (type) where.type = type as NotificationType;
-      if (priority) where.priority = priority as NotificationPriority;
-      if (isRead !== undefined) where.isRead = isRead === 'true';
-      
-      if (dateFrom || dateTo) {
-        where.createdAt = {};
-        if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
-        if (dateTo) where.createdAt.lte = new Date(dateTo as string);
-      }
-
-      const [notifications, total, unreadCount] = await Promise.all([
-        db.notification.findMany({
-          where,
-          orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
-          skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-          take: parseInt(limit as string)
-        }),
-        db.notification.count({ where }),
-        db.notification.count({
-          where: {
-            userId: req.user.userId,
-            isRead: false
-          }
-        })
-      ]);
-
-      const pages = Math.ceil(total / parseInt(limit as string));
-
       res.json({
         success: true,
-        data: {
-          notifications,
-          pagination: {
-            page: parseInt(page as string),
-            limit: parseInt(limit as string),
-            total,
-            pages
-          },
-          unreadCount
-        }
+        data: notifications
       });
     } catch (error) {
-      logger.error('Get notifications error:', error);
+      logger.error('Failed to fetch notifications:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get notifications',
-        code: 'GET_NOTIFICATIONS_ERROR'
+        error: 'Failed to fetch notifications'
       });
     }
-  }
+  })
 );
 
-/**
- * GET /notifications/unread
- * Get unread notifications count
- */
+// Get unread notification count
 router.get('/unread',
   authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
+  withAuth(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const unreadCount = await db.notification.count({
-        where: {
-          userId: req.user.userId,
-          isRead: false
-        }
-      });
-
-      res.json({
-        success: true,
-        data: { unreadCount }
-      });
-    } catch (error) {
-      logger.error('Get unread count error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get unread count',
-        code: 'GET_UNREAD_COUNT_ERROR'
-      });
-    }
-  }
-);
-
-/**
- * PUT /notifications/:id/read
- * Mark notification as read
- */
-router.put('/:id/read',
-  authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { id } = req.params;
-      
-      const success = await NotificationService.markAsRead(id, req.user.userId);
-      
-      if (!success) {
-        return res.status(404).json({
-          success: false,
-          message: 'Notification not found',
-          code: 'NOTIFICATION_NOT_FOUND'
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Notification marked as read'
-      });
-    } catch (error) {
-      logger.error('Mark notification as read error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to mark notification as read',
-        code: 'MARK_READ_ERROR'
-      });
-    }
-  }
-);
-
-/**
- * PUT /notifications/read-all
- * Mark all notifications as read
- */
-router.put('/read-all',
-  authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const count = await NotificationService.markAllAsRead(req.user.userId);
+      const userId = req.user!.address;
+      const count = await NotificationService.getUnreadCount(userId);
       
       res.json({
         success: true,
-        message: `Marked ${count} notifications as read`,
         data: { count }
       });
     } catch (error) {
-      logger.error('Mark all notifications as read error:', error);
+      logger.error('Failed to get unread count:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to mark all notifications as read',
-        code: 'MARK_ALL_READ_ERROR'
+        error: 'Failed to get unread count'
       });
     }
-  }
+  })
 );
 
-/**
- * POST /notifications/send
- * Send notification (Admin only)
- */
-router.post('/send',
+// Mark notification as read
+router.put('/:id/read',
   authenticate,
-  authorize('ADMIN'),
-  async (req: AuthenticatedRequest, res: Response) => {
+  withAuth(async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const {
-        userIds,
-        type,
-        title,
-        message,
-        priority = NotificationPriority.MEDIUM,
-        metadata = {},
-        actionUrl,
-        sendToAll = false
-      } = req.body;
-
-      if (!title || !message) {
-        return res.status(400).json({
-          success: false,
-          message: 'Title and message are required',
-          code: 'MISSING_REQUIRED_FIELDS'
-        });
-      }
-
-      let targetUserIds: string[] = [];
-
-      if (sendToAll) {
-        // Get all active users
-        const users = await db.user.findMany({
-          where: { isActive: true },
-          select: { id: true }
-        });
-        targetUserIds = users.map(user => user.id);
-      } else if (userIds && Array.isArray(userIds)) {
-        targetUserIds = userIds;
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: 'User IDs are required when not sending to all',
-          code: 'MISSING_USER_IDS'
-        });
-      }
-
-      // Create notifications
-      const notifications = targetUserIds.map(userId => ({
-        userId,
-        type: type as NotificationType,
-        title,
-        message,
-        priority: priority as NotificationPriority,
-        metadata,
-        actionUrl
-      }));
-
-      const result = await NotificationService.createBulkNotifications(notifications);
+      const userId = req.user!.address;
+      const notificationId = req.params.id;
       
-      if (!result) {
-        return res.status(500).json({
+      const success = await NotificationService.markAsRead(notificationId, userId);
+      
+      if (success) {
+        res.json({
+          success: true,
+          message: 'Notification marked as read'
+        });
+      } else {
+        res.status(404).json({
           success: false,
-          message: 'Failed to send notifications',
-          code: 'SEND_FAILED'
+          error: 'Notification not found'
         });
       }
-
-      res.status(201).json({
-        success: true,
-        message: `Sent ${result.count} notifications`,
-        data: { count: result.count }
-      });
     } catch (error) {
-      logger.error('Send notification error:', error);
+      logger.error('Failed to mark notification as read:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to send notification',
-        code: 'SEND_NOTIFICATION_ERROR'
+        error: 'Failed to mark notification as read'
       });
     }
-  }
+  })
+);
+
+// Mark all notifications as read
+router.put('/read-all',
+  authenticate,
+  withAuth(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user!.address;
+      const count = await NotificationService.markAllAsRead(userId);
+      
+      res.json({
+        success: true,
+        message: `Marked ${count} notifications as read`
+      });
+    } catch (error) {
+      logger.error('Failed to mark all notifications as read:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to mark all notifications as read'
+      });
+    }
+  })
 );
 
 export default router;
-export { NotificationService };

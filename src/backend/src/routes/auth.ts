@@ -7,7 +7,8 @@ import {
   authRateLimit,
   validateWalletAddress,
   logAuthEvent,
-  AuthenticatedRequest
+  AuthenticatedRequest,
+  withAuth
 } from '../middleware/auth';
 // Removed enum imports - using string literals instead
 
@@ -21,7 +22,7 @@ router.post('/nonce',
   authRateLimit(10, 5 * 60 * 1000), // 10 requests per 5 minutes
   validateWalletAddress,
   logAuthEvent('NONCE_REQUEST'),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<Response | void> => {
     try {
       const { walletAddress } = req.body;
       
@@ -55,7 +56,7 @@ router.post('/register',
   authRateLimit(3, 15 * 60 * 1000), // 3 attempts per 15 minutes
   validateWalletAddress,
   logAuthEvent('REGISTER_ATTEMPT'),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<Response | void> => {
     try {
       const { walletAddress, signature, message, email, name } = req.body;
       
@@ -105,6 +106,7 @@ router.post('/register',
             email: user.email,
             name: user.name,
             role: user.role,
+            isActive: user.isActive,
             createdAt: user.createdAt
           },
           token
@@ -129,7 +131,7 @@ router.post('/login',
   authRateLimit(5, 15 * 60 * 1000), // 5 attempts per 15 minutes
   validateWalletAddress,
   logAuthEvent('LOGIN_ATTEMPT'),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<Response | void> => {
     try {
       const { walletAddress, signature, message } = req.body;
       
@@ -190,7 +192,7 @@ router.post('/login',
  */
 router.get('/me',
   authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
+  withAuth(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
     try {
       const user = await authService.getUserById(req.user.userId);
       
@@ -225,7 +227,7 @@ router.get('/me',
         code: 'PROFILE_ERROR'
       });
     }
-  }
+  })
 );
 
 /**
@@ -234,7 +236,7 @@ router.get('/me',
  */
 router.put('/profile',
   authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
+  withAuth(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
     try {
       const { name, email } = req.body;
       
@@ -282,7 +284,7 @@ router.put('/profile',
         code: 'UPDATE_ERROR'
       });
     }
-  }
+  })
 );
 
 /**
@@ -290,7 +292,7 @@ router.put('/profile',
  * Verify if token is valid
  */
 router.post('/verify-token',
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<Response | void> => {
     try {
       const { token } = req.body;
       
@@ -350,7 +352,7 @@ router.post('/verify-token',
  */
 router.delete('/account',
   authenticate,
-  async (req: AuthenticatedRequest, res: Response) => {
+  withAuth(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
     try {
       const success = await authService.deactivateUser(req.user.userId);
       
@@ -374,7 +376,7 @@ router.delete('/account',
         code: 'DEACTIVATION_ERROR'
       });
     }
-  }
+  })
 );
 
 /**
@@ -383,8 +385,8 @@ router.delete('/account',
  */
 router.get('/users',
   authenticate,
-  authorize('ADMIN'),
-  async (_req: Request, res: Response) => {
+  authorize('admin'),
+  withAuth(async (_req: AuthenticatedRequest, res: Response) => {
     try {
       // This would typically use a user service, but for now we'll use the auth service
       // In a real implementation, you'd want pagination and filtering
@@ -401,7 +403,7 @@ router.get('/users',
         code: 'GET_USERS_ERROR'
       });
     }
-  }
+  })
 );
 
 export default router;

@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { db } from '../config/database';
 import { logger } from '../utils/logger';
 // VerificationStatus enum values: 'PENDING', 'VERIFIED', 'REJECTED', 'EXPIRED'
 import fs from 'fs';
@@ -71,8 +70,8 @@ class BlockchainService {
       const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
       
       this.contractAddresses = {
-        registry: deployment.SealGuardRegistry.address,
-        accessControl: deployment.SealGuardAccessControl.address,
+        registry: deployment.contracts.SealGuardRegistry.address,
+        accessControl: deployment.contracts.SealGuardAccessControl.address,
       };
       
       logger.info('Contract addresses loaded:', this.contractAddresses);
@@ -278,42 +277,20 @@ class BlockchainService {
   async processVerificationResult(
     documentId: string,
     verificationResult: VerificationResult,
-    verifierId: string
+    _verifierId: string
   ): Promise<boolean> {
     try {
       if (verificationResult.success) {
-        // Update verification record in database
-        await db.verificationRecord.create({
-          data: {
-            documentId,
-            verifierId,
-            transactionHash: verificationResult.transactionHash!,
-            blockNumber: verificationResult.blockNumber || null,
-            gasUsed: verificationResult.gasUsed || null,
-            status: 'CONFIRMED' as string,
-            verifiedAt: new Date(),
-          } as any,
+        // Verification is now stored on-chain via smart contract
+        // No database operations needed - all verification data is on blockchain
+        logger.info(`Verification processed successfully for document ${documentId}`, {
+          transactionHash: verificationResult.transactionHash,
+          blockNumber: verificationResult.blockNumber,
+          gasUsed: verificationResult.gasUsed
         });
-
-        // Update document status
-        await db.document.update({
-          where: { id: documentId },
-          data: { status: 'VERIFIED' },
-        });
-
-        logger.info(`Verification processed successfully for document ${documentId}`);
         return true;
       } else {
-        // Record failed verification
-        await db.verificationRecord.create({
-          data: {
-            documentId,
-            verifierId,
-            status: 'FAILED' as string,
-            errorMessage: verificationResult.error || null,
-          } as any,
-        });
-
+        // Log failed verification - no database storage needed
         logger.warn(`Verification failed for document ${documentId}: ${verificationResult.error}`);
         return false;
       }

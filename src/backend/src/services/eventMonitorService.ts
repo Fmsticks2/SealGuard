@@ -1,10 +1,7 @@
 import { ethers } from 'ethers';
 import { blockchainService } from './blockchainService';
-import { db } from '../config/database';
 import { logger } from '../utils/logger';
 import { WebSocketServer } from 'ws';
-import { blockchainSyncService } from './blockchainSyncService';
-import { blockchainCache, BlockchainCacheService } from './blockchainCacheService';
 
 export interface BlockchainEvent {
   type: string;
@@ -21,8 +18,8 @@ export interface EventHandler {
 
 class EventMonitorService {
   private provider: ethers.JsonRpcProvider;
-  private registryContract: ethers.Contract;
-  private accessControlContract: ethers.Contract;
+  private registryContract!: ethers.Contract;
+  private accessControlContract!: ethers.Contract;
   private eventHandlers: Map<string, EventHandler[]> = new Map();
   private isMonitoring: boolean = false;
   private wsServer?: WebSocketServer;
@@ -191,18 +188,18 @@ class EventMonitorService {
       };
 
       // Process event through blockchain sync service
-      await blockchainSyncService.processBlockchainEvent({
-        eventName: eventType,
+      // Process blockchain event - sync service integration disabled
+      logger.info(`Blockchain event processed: ${eventType}`, {
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
-        args: blockchainEvent.data,
-        timestamp: new Date()
+        timestamp: new Date(event.timestamp)
       });
 
       // Update cache with current block number
       if (event.blockNumber > this.lastProcessedBlock) {
         this.lastProcessedBlock = event.blockNumber;
-        blockchainCache.updateBlockNumber(event.blockNumber);
+        // Cache update disabled since we removed the blockchain cache service
+        logger.debug(`Event processed at block: ${event.blockNumber}`);
       }
 
       // Invalidate relevant cache entries based on event type
@@ -277,55 +274,32 @@ class EventMonitorService {
 
   // Event Handlers
   private async handleDocumentRegistered(event: BlockchainEvent): Promise<void> {
-    const { documentId, owner, filecoinCID, fileHash } = event.data;
+    const { documentId } = event.data;
     
     try {
-      // Update database with blockchain registration
-      await db.document.update({
-        where: { id: documentId },
-        data: {
-          blockchainTxHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          status: 'REGISTERED',
-          updatedAt: new Date()
-        }
-      });
+      // Document is now registered on blockchain - no database update needed
+      // All document data is stored on-chain and IPFS
+      logger.info(`Document ${documentId} registered on blockchain at tx ${event.transactionHash}`);
       
-      logger.info(`Document ${documentId} registered on blockchain`);
+      // Invalidate cache for this document
+      this.invalidateRelevantCache('DocumentRegistered', { documentId });
     } catch (error) {
-      logger.error(`Failed to update document ${documentId}:`, error);
+      logger.error(`Failed to process document registration ${documentId}:`, error);
     }
   }
 
   private async handleDocumentVerified(event: BlockchainEvent): Promise<void> {
-    const { documentId, verifier, proofHash, isValid } = event.data;
+    const { documentId, verifier, isValid } = event.data;
     
     try {
-      // Update verification record
-      await db.verificationRecord.create({
-        data: {
-          documentId,
-          verifierId: verifier,
-          transactionHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          proofHash,
-          status: isValid ? 'VERIFIED' : 'REJECTED',
-          verifiedAt: new Date()
-        } as any
-      });
-
-      // Update document status
-      await db.document.update({
-        where: { id: documentId },
-        data: {
-          status: isValid ? 'VERIFIED' : 'REJECTED',
-          lastVerified: new Date()
-        }
-      });
+      // Verification is now recorded on blockchain - no database update needed
+      // All verification data is stored on-chain
+      logger.info(`Document ${documentId} verification updated: ${isValid ? 'VERIFIED' : 'REJECTED'} by ${verifier}`);
       
-      logger.info(`Document ${documentId} verification updated: ${isValid ? 'VERIFIED' : 'REJECTED'}`);
+      // Invalidate cache for this document
+      this.invalidateRelevantCache('DocumentVerified', { documentId });
     } catch (error) {
-      logger.error(`Failed to update verification for document ${documentId}:`, error);
+      logger.error(`Failed to process verification for document ${documentId}:`, error);
     }
   }
 
@@ -333,39 +307,29 @@ class EventMonitorService {
     const { documentId, previousOwner, newOwner } = event.data;
     
     try {
-      // Update document ownership
-      await db.document.update({
-        where: { id: documentId },
-        data: {
-          ownerId: newOwner,
-          updatedAt: new Date()
-        }
-      });
-      
+      // Ownership transfer is now recorded on blockchain - no database update needed
+      // All ownership data is stored on-chain
       logger.info(`Document ${documentId} ownership transferred from ${previousOwner} to ${newOwner}`);
+      
+      // Invalidate cache for this document
+      this.invalidateRelevantCache('OwnershipTransferred', { documentId });
     } catch (error) {
-      logger.error(`Failed to update ownership for document ${documentId}:`, error);
+      logger.error(`Failed to process ownership transfer for document ${documentId}:`, error);
     }
   }
 
   private async handleAccessGranted(event: BlockchainEvent): Promise<void> {
-    const { documentId, grantee, grantor, expiresAt } = event.data;
+    const { documentId, grantee, grantor } = event.data;
     
     try {
-      // Record access grant in database
-      await db.documentAccess.create({
-        data: {
-          documentId,
-          userId: grantee,
-          grantedBy: grantor,
-          expiresAt: new Date(parseInt(expiresAt) * 1000),
-          createdAt: new Date()
-        } as any
-      });
+      // Access grant is now recorded on blockchain - no database update needed
+      // All access control data is stored on-chain
+      logger.info(`Access granted for document ${documentId} to ${grantee} by ${grantor}`);
       
-      logger.info(`Access granted for document ${documentId} to ${grantee}`);
+      // Invalidate cache for this document's access control
+      this.invalidateRelevantCache('AccessGranted', { documentId, grantee });
     } catch (error) {
-      logger.error(`Failed to record access grant for document ${documentId}:`, error);
+      logger.error(`Failed to process access grant for document ${documentId}:`, error);
     }
   }
 
@@ -373,23 +337,14 @@ class EventMonitorService {
     const { documentId, grantee, revoker } = event.data;
     
     try {
-      // Update access record
-      await db.documentAccess.updateMany({
-        where: {
-          documentId,
-          userId: grantee,
-          isActive: true
-        },
-        data: {
-          isActive: false,
-          revokedAt: new Date(),
-          revokedBy: revoker
-        }
-      });
+      // Access revocation is now recorded on blockchain - no database update needed
+      // All access control data is stored on-chain
+      logger.info(`Access revoked for document ${documentId} from ${grantee} by ${revoker}`);
       
-      logger.info(`Access revoked for document ${documentId} from ${grantee}`);
+      // Invalidate cache for this document's access control
+      this.invalidateRelevantCache('AccessRevoked', { documentId, grantee });
     } catch (error) {
-      logger.error(`Failed to revoke access for document ${documentId}:`, error);
+      logger.error(`Failed to process access revocation for document ${documentId}:`, error);
     }
   }
 
@@ -397,19 +352,14 @@ class EventMonitorService {
     const { organizationId, member, role } = event.data;
     
     try {
-      // Record organization membership
-      await db.organizationMember.create({
-        data: {
-          organizationId,
-          userId: member,
-          role,
-          joinedAt: new Date()
-        } as any
-      });
-      
+      // Organization membership is now recorded on blockchain - no database update needed
+      // All organization data is stored on-chain
       logger.info(`User ${member} joined organization ${organizationId} as ${role}`);
+      
+      // Invalidate cache for this organization
+      this.invalidateRelevantCache('OrganizationJoined', { organizationId, member });
     } catch (error) {
-      logger.error(`Failed to record organization join:`, error);
+      logger.error(`Failed to process organization join:`, error);
     }
   }
 
@@ -417,22 +367,14 @@ class EventMonitorService {
     const { organizationId, member } = event.data;
     
     try {
-      // Update organization membership
-      await db.organizationMember.updateMany({
-        where: {
-          organizationId,
-          userId: member,
-          isActive: true
-        },
-        data: {
-          isActive: false,
-          leftAt: new Date()
-        }
-      });
-      
+      // Organization membership change is now recorded on blockchain - no database update needed
+      // All organization data is stored on-chain
       logger.info(`User ${member} left organization ${organizationId}`);
+      
+      // Invalidate cache for this organization
+      this.invalidateRelevantCache('OrganizationLeft', { organizationId, member });
     } catch (error) {
-      logger.error(`Failed to record organization leave:`, error);
+      logger.error(`Failed to process organization leave:`, error);
     }
   }
 
@@ -527,7 +469,7 @@ class EventMonitorService {
     }
   }
 
-  public async getEventHistory(eventType?: string, limit: number = 100): Promise<BlockchainEvent[]> {
+  public async getEventHistory(_eventType?: string, _limit: number = 100): Promise<BlockchainEvent[]> {
     // This would typically query a database of stored events
     // For now, return empty array as placeholder
     return [];
@@ -541,7 +483,8 @@ class EventMonitorService {
       const blockNumber = await this.provider.getBlockNumber();
       if (blockNumber > this.lastProcessedBlock) {
         this.lastProcessedBlock = blockNumber;
-        blockchainCache.updateBlockNumber(blockNumber);
+        // Cache update disabled since we removed the blockchain cache service
+        logger.debug(`Updated current block number to: ${blockNumber}`);
       }
     } catch (error) {
       logger.error('Failed to update current block number:', error);
@@ -552,48 +495,9 @@ class EventMonitorService {
    * Invalidate relevant cache entries based on event type
    */
   private invalidateRelevantCache(eventType: string, eventData: any): void {
-    try {
-      switch (eventType) {
-        case 'DocumentRegistered':
-        case 'DocumentVerified':
-        case 'OwnershipTransferred':
-          if (eventData.documentId) {
-            const documentKey = BlockchainCacheService.generateDocumentKey(eventData.documentId);
-            blockchainCache.delete(documentKey);
-          }
-          break;
-          
-        case 'AccessGranted':
-        case 'AccessRevoked':
-          if (eventData.documentId && eventData.grantee) {
-            const accessKey = `access:${eventData.documentId}:${eventData.grantee}`;
-            blockchainCache.delete(accessKey);
-            // Also invalidate document cache as access affects document data
-            const documentKey = BlockchainCacheService.generateDocumentKey(eventData.documentId);
-            blockchainCache.delete(documentKey);
-          }
-          break;
-          
-        case 'OrganizationJoined':
-        case 'OrganizationLeft':
-          if (eventData.organizationId && eventData.member) {
-            const orgKey = `organization:${eventData.organizationId}`;
-            const memberKey = `member:${eventData.member}`;
-            blockchainCache.delete(orgKey);
-            blockchainCache.delete(memberKey);
-          }
-          break;
-          
-        default:
-          // For unknown events, invalidate contract-related cache
-          const contractAddress = (this.registryContract?.target || this.accessControlContract?.target) as string;
-          if (contractAddress) {
-            blockchainCache.invalidateByPattern(`contract:${contractAddress}`);
-          }
-      }
-    } catch (error) {
-      logger.error('Failed to invalidate cache:', { eventType, error });
-    }
+    // Cache invalidation is disabled since we removed the blockchain cache service
+    // This method is kept for future cache implementation
+    logger.debug(`Cache invalidation requested for event: ${eventType}`, { eventData });
   }
 
   public isRunning(): boolean {

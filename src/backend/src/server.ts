@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 import app, { server } from './app';
-import { db } from './config/database';
 import logger from './utils/logger';
 import { eventMonitorService } from './services/eventMonitorService';
 
@@ -10,18 +9,6 @@ const PORT = process.env.PORT || 3001;
 
 async function startServer() {
   try {
-    // Initialize database connection
-    logger.info('🔌 Connecting to database...');
-    await db.$connect();
-    logger.info('✅ Database connected successfully');
-
-    // Run database migrations in development
-    if (process.env.NODE_ENV !== 'production') {
-      logger.info('🔄 Running database migrations...');
-      // Note: In production, migrations should be run separately
-      // await db.$executeRaw`-- Add any necessary migrations here`;
-    }
-
     // Initialize blockchain event monitoring
     logger.info('🔗 Starting blockchain event monitoring...');
     await eventMonitorService.startMonitoring();
@@ -44,11 +31,12 @@ async function startServer() {
         logger.info('HTTP server closed');
         
         try {
-          await db.$disconnect();
-          logger.info('Database connection closed');
+          // Stop blockchain event monitoring
+          await eventMonitorService.stopMonitoring();
+          logger.info('Blockchain event monitoring stopped');
           process.exit(0);
         } catch (error) {
-          logger.error('Error during database disconnect:', error);
+          logger.error('Error during shutdown:', error);
           process.exit(1);
         }
       });

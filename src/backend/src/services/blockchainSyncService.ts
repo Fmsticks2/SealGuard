@@ -1,6 +1,3 @@
-import { Document } from '../models/Document';
-import { User } from '../models/User';
-import { VerificationProof } from '../models/VerificationProof';
 import logger from '../utils/logger';
 import { io } from '../app';
 
@@ -42,50 +39,17 @@ class BlockchainSyncService {
     try {
       logger.info(`Processing DocumentRegistered event for document ${event.documentId}`);
 
-      // Find the user by wallet address
-      const user = await User.findOne({ walletAddress: event.owner.toLowerCase() });
-      if (!user) {
-        logger.warn(`User not found for wallet address: ${event.owner}`);
-        return;
-      }
-
-      // Check if document already exists
-      const existingDoc = await Document.findOne({ 
-        blockchainId: event.documentId 
-      });
-
-      if (existingDoc) {
-        logger.info(`Document ${event.documentId} already exists in database`);
-        return;
-      }
-
-      // Create new document record
-      const document = new Document({
-        title: `Document ${event.documentId}`,
-        description: 'Document registered via blockchain',
+      // Document is now fully managed on blockchain - no database operations needed
+      // All document data is stored on-chain and IPFS
+      
+      // Emit real-time event to frontend for the owner
+      io.to(`wallet:${event.owner.toLowerCase()}`).emit('document:registered', {
+        documentId: event.documentId,
+        owner: event.owner,
         fileHash: event.fileHash,
-        blockchainId: event.documentId,
         documentType: event.documentType,
-        owner: user._id,
-        status: 'pending',
-        lifecycle: 'PENDING',
-        registeredAt: new Date(event.timestamp * 1000),
-        metadata: {
-          blockchainRegistered: true,
-          registrationTxHash: event.documentId // This would be the transaction hash
-        }
-      });
-
-      await document.save();
-      logger.info(`Document ${event.documentId} saved to database`);
-
-      // Emit real-time event to frontend
-      io.to(`user:${user._id}`).emit('document:registered', {
-        documentId: document._id,
-        blockchainId: event.documentId,
-        status: 'pending',
-        lifecycle: 'PENDING',
-        timestamp: new Date()
+        status: 'registered',
+        timestamp: new Date(event.timestamp * 1000)
       });
 
       // Emit to all connected clients for global updates
@@ -109,69 +73,17 @@ class BlockchainSyncService {
     try {
       logger.info(`Processing DocumentVerified event for document ${event.documentId}`);
 
-      // Find the document by blockchain ID
-      const document = await Document.findOne({ 
-        blockchainId: event.documentId 
-      }).populate('owner');
-
-      if (!document) {
-        logger.warn(`Document not found for blockchain ID: ${event.documentId}`);
-        return;
-      }
-
-      // Find the verifier
-      const verifier = await User.findOne({ 
-        walletAddress: event.verifier.toLowerCase() 
-      });
-
-      // Update document status and lifecycle
-      const newStatus = event.isValid ? 'verified' : 'rejected';
-      const newLifecycle = event.isValid ? 'ACTIVE' : 'REJECTED';
-
-      document.status = newStatus;
-      document.lifecycle = newLifecycle;
-      document.verifiedAt = new Date(event.timestamp * 1000);
+      // Document verification is now fully managed on blockchain - no database operations needed
+      // All verification data is stored on-chain
       
-      if (verifier) {
-        document.verifiedBy = verifier._id;
-      }
+      const newStatus = event.isValid ? 'verified' : 'rejected';
 
-      await document.save();
-
-      // Create verification proof record
-      const verificationProof = new VerificationProof({
-        document: document._id,
-        verifier: verifier?._id,
-        verifierAddress: event.verifier,
-        isValid: event.isValid,
-        verificationDate: new Date(event.timestamp * 1000),
-        blockchainProof: {
-          transactionHash: event.documentId, // This would be the actual tx hash
-          blockNumber: 0, // Would be provided in the event
-          verified: true
-        }
-      });
-
-      await verificationProof.save();
-      logger.info(`Verification proof saved for document ${event.documentId}`);
-
-      // Emit real-time events
-      if (document.owner) {
-        io.to(`user:${document.owner._id || document.owner}`).emit('document:verified', {
-          documentId: document._id,
-          blockchainId: event.documentId,
-          status: newStatus,
-          lifecycle: newLifecycle,
-          isValid: event.isValid,
-          verifier: event.verifier,
-          timestamp: new Date(event.timestamp * 1000)
-        });
-      }
-
-      io.to(`document:${document._id}`).emit('verification:completed', {
-        documentId: document._id,
+      // Emit real-time events to document room
+      io.to(`document:${event.documentId}`).emit('verification:completed', {
+        documentId: event.documentId,
         isValid: event.isValid,
         verifier: event.verifier,
+        status: newStatus,
         timestamp: new Date(event.timestamp * 1000)
       });
 
@@ -196,60 +108,24 @@ class BlockchainSyncService {
     try {
       logger.info(`Processing OwnershipTransferred event for document ${event.documentId}`);
 
-      // Find the document
-      const document = await Document.findOne({ 
-        blockchainId: event.documentId 
+      // Ownership transfer is now fully managed on blockchain - no database operations needed
+      // All ownership data is stored on-chain
+
+      // Emit real-time events to wallet rooms
+      io.to(`wallet:${event.previousOwner.toLowerCase()}`).emit('document:ownership-lost', {
+        documentId: event.documentId,
+        newOwner: event.newOwner,
+        timestamp: new Date(event.timestamp * 1000)
       });
 
-      if (!document) {
-        logger.warn(`Document not found for blockchain ID: ${event.documentId}`);
-        return;
-      }
-
-      // Find the new owner
-      const newOwner = await User.findOne({ 
-        walletAddress: event.newOwner.toLowerCase() 
-      });
-
-      if (!newOwner) {
-        logger.warn(`New owner not found for wallet address: ${event.newOwner}`);
-        return;
-      }
-
-      const previousOwnerId = document.owner;
-      
-      // Update document ownership
-      document.owner = newOwner._id;
-      document.transferHistory = document.transferHistory || [];
-      document.transferHistory.push({
-        from: event.previousOwner,
-        to: event.newOwner,
-        timestamp: new Date(event.timestamp * 1000),
-        transactionHash: event.documentId // Would be actual tx hash
-      });
-
-      await document.save();
-      logger.info(`Ownership transferred for document ${event.documentId}`);
-
-      // Emit real-time events
-      if (previousOwnerId) {
-        io.to(`user:${previousOwnerId}`).emit('document:ownership-lost', {
-          documentId: document._id,
-          blockchainId: event.documentId,
-          newOwner: event.newOwner,
-          timestamp: new Date(event.timestamp * 1000)
-        });
-      }
-
-      io.to(`user:${newOwner._id}`).emit('document:ownership-gained', {
-        documentId: document._id,
-        blockchainId: event.documentId,
+      io.to(`wallet:${event.newOwner.toLowerCase()}`).emit('document:ownership-gained', {
+        documentId: event.documentId,
         previousOwner: event.previousOwner,
         timestamp: new Date(event.timestamp * 1000)
       });
 
-      io.to(`document:${document._id}`).emit('ownership:transferred', {
-        documentId: document._id,
+      io.to(`document:${event.documentId}`).emit('ownership:transferred', {
+        documentId: event.documentId,
         previousOwner: event.previousOwner,
         newOwner: event.newOwner,
         timestamp: new Date(event.timestamp * 1000)

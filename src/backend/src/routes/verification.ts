@@ -5,9 +5,9 @@ import { logger } from '../utils/logger';
 import {
   authenticate,
   authorize,
-  AuthenticatedRequest
+  AuthenticatedRequest,
+  withAuth
 } from '../middleware/auth';
-import { db } from '../config/database';
 
 // Define enums locally
 enum VerificationStatus {
@@ -24,6 +24,20 @@ enum DocumentStatus {
   REJECTED = 'REJECTED'
 }
 
+interface VerificationRecord {
+  id: string;
+  documentId: string;
+  verifierId: string;
+  status: string;
+  notes?: string;
+  proofHash?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// In-memory storage for verification records
+const verificationRecords = new Map<string, VerificationRecord>();
+
 const router = Router();
 
 /**
@@ -32,7 +46,7 @@ const router = Router();
  */
 router.get('/records',
   authenticate,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<Response | void> => {
     const authReq = req as AuthenticatedRequest;
     try {
       const {
@@ -45,11 +59,15 @@ router.get('/records',
         dateTo
       } = req.query;
 
-      // Build filters
-      const where: any = {};
-      
-      if (status) where.status = status as string;
-      if (documentId) where.documentId = documentId as string;
+      let records = Array.from(verificationRecords.values());
+
+      // Apply filters
+      if (status) {
+        records = records.filter(record => record.status === status);
+      }
+      if (documentId) {
+        records = records.filter(record => record.documentId === documentId);
+      }
       if (verifierId) {
         // Only admin can filter by other verifiers
         if (verifierId !== authReq.user.userId && authReq.user.role !== 'ADMIN') {
@@ -59,164 +77,98 @@ router.get('/records',
             code: 'ACCESS_DENIED'
           });
         }
-        where.verifierId = verifierId as string;
+        records = records.filter(record => record.verifierId === verifierId);
       } else if (authReq.user.role !== 'ADMIN' && authReq.user.role !== 'MODERATOR') {
         // Regular users can only see their own verifications
-        where.verifierId = authReq.user.userId;
+        records = records.filter(record => record.verifierId === authReq.user.userId);
       }
       
-      if (dateFrom || dateTo) {
-        where.createdAt = {};
-        if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
-        if (dateTo) where.createdAt.lte = new Date(dateTo as string);
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom as string);
+        records = records.filter(record => record.createdAt >= fromDate);
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo as string);
+        records = records.filter(record => record.createdAt <= toDate);
       }
 
-      const [records, total] = await Promise.all([
-        db.verificationRecord.findMany({
-          where,
-          include: {
-            document: {
-              select: {
-                id: true,
-                fileName: true,
-                originalName: true,
-                category: true,
-                status: true,
-                uploadedAt: true,
-                uploader: {
-                  select: {
-                    id: true,
-                    walletAddress: true
-                  }
-                }
-              }
-            },
-            verifier: {
-              select: {
-                id: true,
-                walletAddress: true,
-                role: true
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-          take: parseInt(limit as string)
-        }),
-        db.verificationRecord.count({ where })
-      ]);
+      // Sort by creation date (newest first)
+      records.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-      const pages = Math.ceil(total / parseInt(limit as string));
+      const total = records.length;
+      const pages = Math.ceil(total / Number(limit));
+      const startIndex = (Number(page) - 1) * Number(limit);
+      const paginatedRecords = records.slice(startIndex, startIndex + Number(limit));
+
+      // Enrich with document and user data
+      const enrichedRecords = await Promise.all(
+        paginatedRecords.map(async (record) => {
+          const document = await documentService.getDocumentById(record.documentId);
+          return {
+            ...record,
+            document: document ? {
+              id: document.id,
+              fileName: document.fileName,
+              originalName: document.originalName,
+              category: document.category,
+              status: document.status,
+              uploadedAt: document.uploadedAt,
+              uploader: {
+                id: document.uploaderId,
+                walletAddress: 'mock_address' // Would need authService integration
+              }
+            } : null,
+            verifier: {
+              id: record.verifierId,
+              walletAddress: 'mock_address', // Would need authService integration
+              role: 'USER'
+            }
+          };
+        })
+      );
 
       res.json({
         success: true,
         data: {
-          records,
+          records: enrichedRecords,
           pagination: {
-            page: parseInt(page as string),
-            limit: parseInt(limit as string),
+            page: Number(page),
+            limit: Number(limit),
             total,
             pages
           }
         }
       });
     } catch (error) {
-      logger.error('Get verification records error:', error);
+      logger.error('Get verification records failed:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to get verification records',
-        code: 'GET_RECORDS_ERROR'
+        code: 'INTERNAL_ERROR'
       });
     }
   }
 );
 
 /**
- * GET /verification/records/:id
- * Get verification record by ID
+ * POST /verification/submit
+ * Submit a document for verification
  */
-router.get('/records/:id',
+router.post('/submit',
   authenticate,
-  async (req: Request, res: Response) => {
-    const authReq = req as AuthenticatedRequest;
+  withAuth(async (_req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
     try {
-      const { id } = req.params;
-      
-      const record = await db.verificationRecord.findUnique({
-        where: { id },
-        include: {
-          document: {
-            include: {
-              uploader: {
-                select: {
-                  id: true,
-                  walletAddress: true,
-                  username: true
-                }
-              }
-            }
-          },
-          verifier: {
-            select: {
-              id: true,
-              walletAddress: true,
-              role: true
-            }
-          }
-        }
-      });
+      const { documentId, notes } = _req.body;
 
-      if (!record) {
-        return res.status(404).json({
+      if (!documentId) {
+        return res.status(400).json({
           success: false,
-          message: 'Verification record not found',
-          code: 'RECORD_NOT_FOUND'
+          message: 'Document ID is required',
+          code: 'MISSING_DOCUMENT_ID'
         });
       }
 
-      // Check access permissions
-      const canAccess = authReq.user.role === 'ADMIN' ||
-          authReq.user.role === 'MODERATOR' ||
-          record.verifierId === authReq.user.userId ||
-          record.document.uploaderId === authReq.user.userId;
-
-      if (!canAccess) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied',
-          code: 'ACCESS_DENIED'
-        });
-      }
-
-      res.json({
-        success: true,
-        data: { record }
-      });
-    } catch (error) {
-      logger.error('Get verification record error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get verification record',
-        code: 'GET_RECORD_ERROR'
-      });
-    }
-  }
-);
-
-/**
- * POST /verification/verify/:documentId
- * Start verification process for a document
- */
-router.post('/verify/:documentId',
-  authenticate,
-  authorize('AUDITOR'),
-  async (req: Request, res: Response) => {
-    const authReq = req as AuthenticatedRequest;
-    try {
-      const { documentId } = req.params;
-      const { notes } = req.body;
-      
-      // Check if document exists
+      // Check if document exists and user has access
       const document = await documentService.getDocumentById(documentId);
       if (!document) {
         return res.status(404).json({
@@ -226,301 +178,7 @@ router.post('/verify/:documentId',
         });
       }
 
-      // Check if already verified or in progress
-      if (document.status === DocumentStatus.VERIFIED) {
-        return res.status(400).json({
-          success: false,
-          message: 'Document already verified',
-          code: 'ALREADY_VERIFIED'
-        });
-      }
-
-      if (document.status === DocumentStatus.PROCESSING) {
-        return res.status(400).json({
-          success: false,
-          message: 'Document verification already in progress',
-          code: 'VERIFICATION_IN_PROGRESS'
-        });
-      }
-
-      // Update document status
-      await documentService.updateDocumentStatus(documentId, DocumentStatus.PROCESSING);
-
-      // Create verification record
-      const verificationRecord = await db.verificationRecord.create({
-        data: {
-          documentId,
-          verifierId: authReq.user.userId,
-          status: VerificationStatus.PENDING,
-          notes: notes?.trim(),
-          metadata: {
-            startedAt: new Date().toISOString(),
-            verifierRole: authReq.user.role
-          }
-        },
-        include: {
-          document: {
-            select: {
-              id: true,
-              fileName: true,
-              ipfsHash: true
-            }
-          }
-        }
-      });
-
-      // Start blockchain verification
-      try {
-        const verificationResult = await blockchainService.verifyDocument(document.ipfsHash);
-        
-        // Update verification record with blockchain data
-        await db.verificationRecord.update({
-          where: { id: verificationRecord.id },
-          data: {
-            transactionHash: verificationResult.transactionHash,
-            blockNumber: verificationResult.blockNumber,
-            gasUsed: verificationResult.gasUsed
-          }
-        });
-
-        return res.status(201).json({
-          success: true,
-          message: 'Verification process started',
-          data: {
-            verificationRecord: {
-              id: verificationRecord.id,
-              status: verificationRecord.status,
-              transactionHash: verificationResult.transactionHash,
-              verificationId: verificationResult.verificationId
-            }
-          }
-        });
-      } catch (blockchainError) {
-        logger.error('Blockchain verification failed:', blockchainError);
-        
-        // Update verification record with error
-        await db.verificationRecord.update({
-          where: { id: verificationRecord.id },
-          data: {
-            status: VerificationStatus.FAILED,
-            errorMessage: blockchainError instanceof Error ? blockchainError.message : 'Unknown blockchain error',
-            verifiedAt: new Date()
-          }
-        });
-
-        // Revert document status
-        await documentService.updateDocumentStatus(documentId, DocumentStatus.PENDING);
-
-        res.status(400).json({
-          success: false,
-          message: 'Blockchain verification failed',
-          code: 'BLOCKCHAIN_VERIFICATION_FAILED',
-          data: {
-            verificationRecord: {
-              id: verificationRecord.id,
-              status: VerificationStatus.FAILED
-            }
-          }
-        });
-      }
-    } catch (error) {
-      logger.error('Start verification error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to start verification',
-        code: 'START_VERIFICATION_ERROR'
-      });
-    }
-  }
-);
-
-/**
- * PUT /verification/records/:id/status
- * Update verification record status (for webhook callbacks)
- */
-router.put('/records/:id/status',
-  authenticate,
-  authorize('AUDITOR'),
-  async (req: Request, res: Response) => {
-    const authReq = req as AuthenticatedRequest;
-    try {
-      const { id } = req.params;
-      const { status, result, transactionHash, blockNumber, gasUsed } = req.body;
-      
-      const record = await db.verificationRecord.findUnique({
-        where: { id },
-        include: { document: true }
-      });
-
-      if (!record) {
-        return res.status(404).json({
-          success: false,
-          message: 'Verification record not found',
-          code: 'RECORD_NOT_FOUND'
-        });
-      }
-
-      // Only the verifier or admin can update
-      if (record.verifierId !== authReq.user.userId && authReq.user.role !== 'ADMIN') {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied',
-          code: 'ACCESS_DENIED'
-        });
-      }
-
-      // Update verification record
-      const updatedRecord = await db.verificationRecord.update({
-        where: { id },
-        data: {
-          status: status as VerificationStatus,
-          transactionHash: transactionHash || record.transactionHash,
-          verifiedAt: [VerificationStatus.VERIFIED, VerificationStatus.FAILED].includes(status) 
-            ? new Date() 
-            : record.verifiedAt,
-          blockNumber,
-          gasUsed: gasUsed || record.gasUsed,
-          errorMessage: result?.error || null
-        }
-      });
-
-      // Update document status based on verification result
-      if (status === VerificationStatus.VERIFIED) {
-        await documentService.updateDocumentStatus(record.documentId, DocumentStatus.VERIFIED);
-      } else if (status === VerificationStatus.FAILED) {
-        await documentService.updateDocumentStatus(record.documentId, DocumentStatus.REJECTED);
-      }
-
-      return res.json({
-        success: true,
-        message: 'Verification status updated',
-        data: { record: updatedRecord }
-      });
-    } catch (error) {
-      logger.error('Update verification status error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update verification status',
-        code: 'UPDATE_STATUS_ERROR'
-      });
-    }
-  }
-);
-
-/**
- * GET /verification/stats
- * Get verification statistics
- */
-router.get('/stats',
-  authenticate,
-  async (req: Request, res: Response) => {
-    const authReq = req as AuthenticatedRequest;
-    try {
-      const { userId, dateFrom, dateTo } = req.query;
-      
-      // Build base filter
-      const where: any = {};
-      
-      if (userId) {
-        if (userId !== authReq.user.userId && authReq.user.role !== 'ADMIN') {
-          return res.status(403).json({
-            success: false,
-            message: 'Access denied',
-            code: 'ACCESS_DENIED'
-          });
-        }
-        where.verifierId = userId as string;
-      } else if (authReq.user.role !== 'ADMIN' && authReq.user.role !== 'MODERATOR') {
-          where.verifierId = authReq.user.userId;
-      }
-      
-      if (dateFrom || dateTo) {
-        where.createdAt = {};
-        if (dateFrom) where.createdAt.gte = new Date(dateFrom as string);
-        if (dateTo) where.createdAt.lte = new Date(dateTo as string);
-      }
-
-      // Get statistics
-      const [totalRecords, statusCounts, recentActivity] = await Promise.all([
-        db.verificationRecord.count({ where }),
-        db.verificationRecord.groupBy({
-          by: ['status'],
-          where,
-          _count: { status: true }
-        }),
-        db.verificationRecord.findMany({
-          where,
-          include: {
-            document: {
-              select: {
-                id: true,
-                fileName: true,
-                category: true
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10
-        })
-      ]);
-
-      // Calculate average verification time for completed records
-      const completedRecords = await db.verificationRecord.findMany({
-        where: {
-          ...where,
-          verifiedAt: { not: null }
-        },
-        select: {
-          createdAt: true,
-          verifiedAt: true
-        }
-      });
-
-      const avgVerificationTime = completedRecords.length > 0
-        ? completedRecords.reduce((acc, record) => {
-            const duration = record.verifiedAt!.getTime() - record.createdAt.getTime();
-            return acc + duration;
-          }, 0) / completedRecords.length
-        : 0;
-
-      const stats = {
-        total: totalRecords,
-        byStatus: statusCounts.reduce((acc, item) => {
-          acc[item.status] = item._count.status;
-          return acc;
-        }, {} as Record<string, number>),
-        averageVerificationTime: Math.round(avgVerificationTime / (1000 * 60)), // in minutes
-        recentActivity
-      };
-
-      return res.json({
-        success: true,
-        data: { stats }
-      });
-    } catch (error) {
-      logger.error('Get verification stats error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get verification statistics',
-        code: 'STATS_ERROR'
-      });
-    }
-  }
-);
-
-/**
- * GET /verification/document/:documentId/status
- * Get verification status for a specific document
- */
-router.get('/document/:documentId/status',
-  authenticate,
-  async (req: Request, res: Response) => {
-    const authReq = req as AuthenticatedRequest;
-    try {
-      const { documentId } = req.params;
-      
-      // Check if user can access this document
-      const canAccess = await documentService.canUserAccessDocument(authReq.user.userId, documentId);
+      const canAccess = await documentService.canUserAccessDocument(_req.user.userId, documentId);
       if (!canAccess) {
         return res.status(403).json({
           success: false,
@@ -529,39 +187,283 @@ router.get('/document/:documentId/status',
         });
       }
 
-      const verificationRecords = await db.verificationRecord.findMany({
-        where: { documentId },
-        include: {
-          verifier: {
-            select: {
-              id: true,
-              walletAddress: true,
-              role: true
-            }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-
-      const document = await documentService.getDocumentById(documentId);
+      // Check if verification already exists
+      const existingVerification = Array.from(verificationRecords.values())
+        .find(record => record.documentId === documentId && record.status === 'PENDING');
       
-      return res.json({
+      if (existingVerification) {
+        return res.status(409).json({
+          success: false,
+          message: 'Verification already pending for this document',
+          code: 'VERIFICATION_EXISTS'
+        });
+      }
+
+      // Create verification record
+      const verificationId = `ver_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const verification: VerificationRecord = {
+        id: verificationId,
+        documentId,
+        verifierId: _req.user.userId,
+        status: VerificationStatus.PENDING,
+        notes,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      verificationRecords.set(verificationId, verification);
+
+      // Submit to blockchain for verification
+      try {
+        // Submit verification to blockchain
+        await blockchainService.verifyDocument(
+          document.ipfsHash
+        );
+        
+        verification.status = VerificationStatus.IN_PROGRESS;
+        verification.updatedAt = new Date();
+        verificationRecords.set(verificationId, verification);
+        
+        logger.info(`Document ${documentId} submitted for blockchain verification`);
+      } catch (blockchainError) {
+        logger.error('Blockchain verification submission failed:', blockchainError);
+        verification.status = VerificationStatus.FAILED;
+        verification.notes = `Blockchain submission failed: ${blockchainError}`;
+        verification.updatedAt = new Date();
+        verificationRecords.set(verificationId, verification);
+      }
+
+      res.status(201).json({
         success: true,
         data: {
-          documentStatus: document?.status,
-          verificationRecords,
-          latestVerification: verificationRecords[0] || null
+          verification,
+          message: 'Document submitted for verification'
         }
       });
     } catch (error) {
-      logger.error('Get document verification status error:', error);
-      return res.status(500).json({
+      logger.error('Submit verification failed:', error);
+      res.status(500).json({
         success: false,
-        message: 'Failed to get document verification status',
-        code: 'GET_DOCUMENT_STATUS_ERROR'
+        message: 'Failed to submit verification',
+        code: 'INTERNAL_ERROR'
       });
     }
-  }
+  })
+);
+
+/**
+ * PUT /verification/:id/status
+ * Update verification status (admin/moderator only)
+ */
+router.put('/:id/status',
+  authenticate,
+  authorize('ADMIN'),
+  withAuth(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+      const { id } = req.params;
+      const { status, notes, proofHash } = req.body;
+
+      if (!Object.values(VerificationStatus).includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid verification status',
+          code: 'INVALID_STATUS'
+        });
+      }
+
+      const verification = verificationRecords.get(id);
+      if (!verification) {
+        return res.status(404).json({
+          success: false,
+          message: 'Verification record not found',
+          code: 'VERIFICATION_NOT_FOUND'
+        });
+      }
+
+      // Update verification record
+      verification.status = status;
+      verification.updatedAt = new Date();
+      if (notes) verification.notes = notes;
+      if (proofHash) verification.proofHash = proofHash;
+      
+      verificationRecords.set(id, verification);
+
+      // Update document status based on verification result
+      if (status === VerificationStatus.VERIFIED) {
+        await documentService.updateDocumentStatus(verification.documentId, DocumentStatus.VERIFIED);
+      } else if (status === VerificationStatus.FAILED) {
+        await documentService.updateDocumentStatus(verification.documentId, DocumentStatus.REJECTED);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          verification,
+          message: 'Verification status updated successfully'
+        }
+      });
+    } catch (error) {
+      logger.error('Update verification status failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update verification status',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  })
+);
+
+/**
+ * GET /verification/:id
+ * Get verification record by ID
+ */
+router.get('/:id',
+  authenticate,
+  withAuth(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+      const { id } = req.params;
+
+      const verification = verificationRecords.get(id);
+      if (!verification) {
+        return res.status(404).json({
+          success: false,
+          message: 'Verification record not found',
+          code: 'VERIFICATION_NOT_FOUND'
+        });
+      }
+
+      // Check access permissions
+      if (req.user.role !== 'ADMIN' && 
+          req.user.role !== 'MODERATOR' && 
+          verification.verifierId !== req.user.userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied',
+          code: 'ACCESS_DENIED'
+        });
+      }
+
+      // Enrich with document data
+      const document = await documentService.getDocumentById(verification.documentId);
+      const enrichedVerification = {
+        ...verification,
+        document: document ? {
+          id: document.id,
+          fileName: document.fileName,
+          originalName: document.originalName,
+          category: document.category,
+          status: document.status,
+          uploadedAt: document.uploadedAt
+        } : null
+      };
+
+      res.json({
+        success: true,
+        data: enrichedVerification
+      });
+    } catch (error) {
+      logger.error('Get verification record failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get verification record',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  })
+);
+
+/**
+ * GET /verification/document/:documentId
+ * Get verification records for a specific document
+ */
+router.get('/document/:documentId',
+  authenticate,
+  withAuth(async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+      const { documentId } = req.params;
+
+      // Check if document exists and user has access
+      const document = await documentService.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({
+          success: false,
+          message: 'Document not found',
+          code: 'DOCUMENT_NOT_FOUND'
+        });
+      }
+
+      const canAccess = await documentService.canUserAccessDocument(req.user.userId, documentId);
+      if (!canAccess && req.user.role !== 'ADMIN' && req.user.role !== 'MODERATOR') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied',
+          code: 'ACCESS_DENIED'
+        });
+      }
+
+      // Get verification records for this document
+      const records = Array.from(verificationRecords.values())
+        .filter(record => record.documentId === documentId)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      res.json({
+        success: true,
+        data: {
+          documentId,
+          records,
+          total: records.length
+        }
+      });
+    } catch (error) {
+      logger.error('Get document verification records failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get document verification records',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  })
+);
+
+/**
+ * GET /verification/stats
+ * Get verification statistics (admin/moderator only)
+ */
+router.get('/stats',
+  authenticate,
+  authorize('ADMIN'),
+  withAuth(async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const records = Array.from(verificationRecords.values());
+      
+      const stats = {
+        total: records.length,
+        pending: records.filter(r => r.status === VerificationStatus.PENDING).length,
+        inProgress: records.filter(r => r.status === VerificationStatus.IN_PROGRESS).length,
+        completed: records.filter(r => r.status === VerificationStatus.COMPLETED).length,
+        verified: records.filter(r => r.status === VerificationStatus.VERIFIED).length,
+        failed: records.filter(r => r.status === VerificationStatus.FAILED).length,
+        byStatus: {} as Record<string, number>
+      };
+
+      // Count by status
+      records.forEach(record => {
+        stats.byStatus[record.status] = (stats.byStatus[record.status] || 0) + 1;
+      });
+
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      logger.error('Get verification stats failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get verification statistics',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  })
 );
 
 export default router;

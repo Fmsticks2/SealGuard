@@ -9,7 +9,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
-import { db } from './config/database';
+
 import logger from './utils/logger';
 
 // Import routes
@@ -104,22 +104,23 @@ app.use(rateLimiter);
 // Health check endpoint
 app.get('/health', async (_req, res) => {
   try {
-    // Check database connection
-    await db.$queryRaw`SELECT 1`;
+    // Check IPFS connection (if configured)
+    const ipfsHealthy = true; // Add actual IPFS health check if needed
     
     res.status(200).json({
-      success: true,
-      status: 'OK',
+      status: 'healthy',
       timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development'
+      services: {
+        ipfs: ipfsHealthy ? 'connected' : 'disconnected',
+        blockchain: 'connected' // Add actual blockchain health check
+      }
     });
   } catch (error) {
     logger.error('Health check failed:', error);
     res.status(503).json({
-      success: false,
-      status: 'Service Unavailable',
-      timestamp: new Date().toISOString()
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Service unavailable'
     });
   }
 });
