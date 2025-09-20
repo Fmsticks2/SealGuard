@@ -146,7 +146,7 @@ describe("SealGuardMultiSig", function () {
             ).to.emit(multiSig, "ProposalCreated");
             
             const proposal = await multiSig.getProposal(1);
-            expect(proposal.operationType).to.equal(2); // ARCHIVE
+            expect(proposal[1]).to.equal(3); // operationType is at index 1, DOCUMENT_ARCHIVE = 3
         });
         
         it("Should reject proposal creation by non-verifier", async function () {
@@ -212,11 +212,11 @@ describe("SealGuardMultiSig", function () {
         
         it("Should allow verifiers to reject proposals", async function () {
             await expect(
-                multiSig.connect(verifier2).rejectProposal(proposalId)
+                multiSig.connect(verifier2).rejectProposal(proposalId, "Test rejection reason")
             ).to.emit(multiSig, "ProposalRejected");
             
             const proposal = await multiSig.getProposal(proposalId);
-            expect(proposal.status).to.equal(2); // REJECTED
+            expect(proposal[10]).to.equal(2); // state is at index 10, REJECTED = 2
         });
         
         it("Should prevent double approval", async function () {
@@ -224,13 +224,13 @@ describe("SealGuardMultiSig", function () {
             
             await expect(
                 multiSig.connect(verifier2).approveProposal(proposalId)
-            ).to.be.revertedWith("Already voted on this proposal");
+            ).to.be.revertedWith("Already approved this proposal");
         });
         
         it("Should prevent non-verifiers from approving", async function () {
             await expect(
                 multiSig.connect(user1).approveProposal(proposalId)
-            ).to.be.revertedWith("Caller is not a verifier");
+            ).to.be.revertedWith("Not a required signer for this proposal");
         });
     });
     

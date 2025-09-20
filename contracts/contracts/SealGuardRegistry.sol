@@ -289,9 +289,16 @@ contract SealGuardRegistry is Ownable, ReentrancyGuard {
     function transferDocumentOwnership(
         uint256 documentId,
         address newOwner
-    ) external onlyDocumentOwner(documentId) {
+    ) external {
         require(newOwner != address(0), "Invalid new owner address");
         require(newOwner != msg.sender, "Cannot transfer to self");
+        
+        // Allow document owner or MultiSig contract to transfer ownership
+        require(
+            documents[documentId].owner == msg.sender || 
+            (address(multiSig) != address(0) && msg.sender == address(multiSig)),
+            "Not authorized to transfer ownership"
+        );
         
         address previousOwner = documents[documentId].owner;
         documents[documentId].owner = newOwner;

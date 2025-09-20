@@ -309,8 +309,8 @@
       ]
     },
     "C:\\Users\\User\\Desktop\\SealGuard\\contracts\\contracts\\SealGuardRegistry.sol": {
-      "lastModificationDate": 1758146209157,
-      "contentHash": "dcdb9203473634f9e210f31bf4af14b8",
+      "lastModificationDate": 1758375533913,
+      "contentHash": "81abd7e6b36fea86c7cde27ec1beaef0",
       "sourceName": "contracts/SealGuardRegistry.sol",
       "solcConfig": {
         "version": "0.8.20",
