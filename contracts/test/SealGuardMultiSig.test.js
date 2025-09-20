@@ -40,6 +40,9 @@ describe("SealGuardMultiSig", function () {
         await accessControl.grantRole(auditorRole, verifier1.address);
         await accessControl.grantRole(auditorRole, verifier2.address);
         
+        // Grant MultiSig contract verifier role so it can execute operations
+        await accessControl.grantRole(verifierRole, multiSig.target);
+        
         // Register a test document
         const fileHash = ethers.keccak256(ethers.toUtf8Bytes("test document content"));
         const tx = await registry.connect(user1).registerDocument(
