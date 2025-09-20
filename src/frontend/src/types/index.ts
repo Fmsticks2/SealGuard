@@ -9,17 +9,7 @@ export interface User {
   updatedAt: string
 }
 
-export interface LoginCredentials {
-  email: string
-  password: string
-}
 
-export interface RegisterData {
-  email: string
-  password: string
-  firstName: string
-  lastName: string
-}
 
 // Document and File Types
 export interface Document {

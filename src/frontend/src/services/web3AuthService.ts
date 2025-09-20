@@ -11,14 +11,14 @@ const chains = [
     name: 'Ethereum Mainnet',
     currency: 'ETH',
     explorerUrl: 'https://etherscan.io',
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY'
+    rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM'
   },
   {
     chainId: 11155111,
     name: 'Sepolia',
     currency: 'ETH',
     explorerUrl: 'https://sepolia.etherscan.io',
-    rpcUrl: 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY'
+    rpcUrl: 'https://eth-sepolia.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM'
   },
   {
     chainId: 137,

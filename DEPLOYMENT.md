@@ -35,9 +35,9 @@ NEXT_PUBLIC_DEFAULT_CHAIN_ID=11155111
 NEXT_PUBLIC_NETWORK_NAME=Sepolia
 
 # RPC URLs (use your provider URLs)
-NEXT_PUBLIC_ETHEREUM_RPC=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
-NEXT_PUBLIC_SEPOLIA_RPC=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-NEXT_PUBLIC_POLYGON_RPC=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
+NEXT_PUBLIC_ETHEREUM_RPC=https://eth-mainnet.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
+NEXT_PUBLIC_SEPOLIA_RPC=https://eth-sepolia.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
+NEXT_PUBLIC_POLYGON_RPC=https://polygon-mainnet.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
 
 # IPFS Configuration
 NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/

@@ -8,9 +8,7 @@ import toast from 'react-hot-toast'
 
 export interface User {
   id: string
-  email: string
-  firstName: string
-  lastName: string
+  address: string
   role: 'user' | 'admin'
   createdAt: string
   updatedAt: string
@@ -25,20 +23,9 @@ export interface AuthState {
 }
 
 export interface AuthActions {
-  login: (email: string, password: string) => Promise<void>
-  register: (data: RegisterData) => Promise<void>
   logout: () => void
   checkAuth: () => Promise<void>
-  refreshAuth: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
-}
-
-export interface RegisterData {
-  email: string
-  password: string
-  firstName: string
-  lastName: string
 }
 
 type AuthStore = AuthState & AuthActions
@@ -54,64 +41,6 @@ const useAuthStoreBase = create<AuthStore>()(
       isAuthenticated: false,
 
       // Actions
-      login: async (email: string, password: string) => {
-        try {
-          set({ isLoading: true })
-          
-          const response = await apiClient.post('/auth/login', {
-            email,
-            password,
-          })
-
-          const { user, token, refreshToken } = response.data.data
-          
-          set({
-            user,
-            token,
-            refreshToken,
-            isAuthenticated: true,
-            isLoading: false,
-          })
-
-          // Set token in API client
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`
-          
-          toast.success('Login successful!')
-        } catch (error: any) {
-          set({ isLoading: false })
-          const message = error.response?.data?.message || 'Login failed'
-          toast.error(message)
-          throw error
-        }
-      },
-
-      register: async (data: RegisterData) => {
-        try {
-          set({ isLoading: true })
-          
-          const response = await apiClient.post('/auth/register', data)
-          
-          const { user, token, refreshToken } = response.data.data
-          
-          set({
-            user,
-            token,
-            refreshToken,
-            isAuthenticated: true,
-            isLoading: false,
-          })
-
-          // Set token in API client
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`
-          
-          toast.success('Registration successful!')
-        } catch (error: any) {
-          set({ isLoading: false })
-          const message = error.response?.data?.message || 'Registration failed'
-          toast.error(message)
-          throw error
-        }
-      },
 
       logout: () => {
         set({
@@ -163,35 +92,7 @@ const useAuthStoreBase = create<AuthStore>()(
         }
       },
 
-      refreshAuth: async () => {
-        const { refreshToken } = get()
-        
-        if (!refreshToken) {
-          throw new Error('No refresh token available')
-        }
 
-        try {
-          const response = await apiClient.post('/auth/refresh', {
-            refreshToken,
-          })
-          
-          const { token: newToken, refreshToken: newRefreshToken } = response.data.data
-          
-          set({
-            token: newToken,
-            refreshToken: newRefreshToken,
-          })
-          
-          // Update token in API client
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-          
-          return newToken
-        } catch (error) {
-          // Refresh failed, logout user
-          get().logout()
-          throw error
-        }
-      },
 
       updateProfile: async (data: Partial<User>) => {
         try {
@@ -208,20 +109,7 @@ const useAuthStoreBase = create<AuthStore>()(
         }
       },
 
-      changePassword: async (currentPassword: string, newPassword: string) => {
-        try {
-          await apiClient.put('/auth/change-password', {
-            currentPassword,
-            newPassword,
-          })
-          
-          toast.success('Password changed successfully')
-        } catch (error: any) {
-          const message = error.response?.data?.message || 'Failed to change password'
-          toast.error(message)
-          throw error
-        }
-      },
+
     }),
     {
       name: 'sealguard-auth',
@@ -254,7 +142,7 @@ export function useAuthStore(): AuthStore {
   return context
 }
 
-// Setup API client interceptors
+// Setup API client interceptors for wallet-based auth
 if (typeof window !== 'undefined') {
   // Request interceptor to add token
   apiClient.interceptors.request.use(
@@ -266,30 +154,5 @@ if (typeof window !== 'undefined') {
       return config
     },
     (error) => Promise.reject(error)
-  )
-
-  // Response interceptor to handle token refresh
-  apiClient.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      const originalRequest = error.config
-      
-      if (error.response?.status === 401 && !originalRequest._retry) {
-        originalRequest._retry = true
-        
-        try {
-          const state = useAuthStoreBase.getState()
-          const newToken = await state.refreshAuth()
-          originalRequest.headers.Authorization = `Bearer ${newToken}`
-          return apiClient(originalRequest)
-        } catch (refreshError) {
-          // Refresh failed, redirect to login
-          window.location.href = '/login'
-          return Promise.reject(refreshError)
-        }
-      }
-      
-      return Promise.reject(error)
-    }
   )
 }

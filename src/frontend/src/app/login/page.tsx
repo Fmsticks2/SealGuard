@@ -13,7 +13,9 @@ export default function LoginPage() {
   const { isConnected, isAuthenticated, user } = useWeb3Auth()
 
   useEffect(() => {
+    console.log('Login page - Auth state changed:', { isConnected, isAuthenticated, user: user?.address })
     if (isConnected && isAuthenticated && user) {
+      console.log('Login page - Redirecting to dashboard')
       router.push('/dashboard')
     }
   }, [isConnected, isAuthenticated, user, router])

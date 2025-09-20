@@ -35,12 +35,23 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
   const [step, setStep] = useState<'connect' | 'sign' | 'complete'>('connect');
 
   useEffect(() => {
+    console.log('WalletConnect - State changed:', {
+      userConnected: user?.isConnected,
+      hasSession: !!session,
+      isAuthenticated,
+      showSignIn,
+      currentStep: step
+    });
+    
     if (user?.isConnected && !session && showSignIn) {
+      console.log('WalletConnect - Moving to sign step');
       setStep('sign');
     } else if (isAuthenticated) {
+      console.log('WalletConnect - Authentication complete, calling onSuccess');
       setStep('complete');
       onSuccess?.();
     } else {
+      console.log('WalletConnect - Moving to connect step');
       setStep('connect');
     }
   }, [user, session, isAuthenticated, showSignIn, onSuccess]);

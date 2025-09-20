@@ -14,7 +14,7 @@ export function LandingPage() {
     setIsLoading(true)
     // Add a small delay for better UX
     await new Promise(resolve => setTimeout(resolve, 500))
-    router.push('/register')
+    router.push('/login')
   }
 
   return (

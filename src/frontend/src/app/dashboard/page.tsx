@@ -12,7 +12,15 @@ export default function DashboardPage() {
   const router = useRouter()
 
   useEffect(() => {
+    console.log('Dashboard page - Auth state changed:', { 
+      isLoading, 
+      isConnected, 
+      isAuthenticated, 
+      user: user?.address 
+    });
+    
     if (!isLoading && (!isConnected || !isAuthenticated)) {
+      console.log('Dashboard page - Not authenticated, redirecting to login');
       router.push('/login')
     }
   }, [isConnected, isAuthenticated, isLoading, router])

@@ -6,6 +6,8 @@ import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import { ethers } from "ethers";
 import { SiweMessage } from "siwe";
 import { mainnet, sepolia, polygon, localhost } from "@reown/appkit/networks";
+import type { AppKitNetwork } from "@reown/appkit/networks";
+import toast from "react-hot-toast";
 
 /**
  * Configuration (update env / metadata as needed)
@@ -19,8 +21,34 @@ const metadata = {
   icons: ["https://sealguard.app/icon.png"],
 };
 
-// Use predefined networks from AppKit
-const networks = [mainnet, sepolia, polygon, localhost];
+// Define Filecoin Calibration network
+const filecoinCalibration: AppKitNetwork = {
+  id: 314159,
+  name: 'Filecoin Calibration',
+  nativeCurrency: {
+    name: 'Test Filecoin',
+    symbol: 'tFIL',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://api.calibration.node.glif.io/rpc/v1'],
+    },
+    public: {
+      http: ['https://api.calibration.node.glif.io/rpc/v1'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Filecoin Calibration Explorer',
+      url: 'https://calibration.filscan.io',
+    },
+  },
+  testnet: true,
+};
+
+// Use predefined networks from AppKit plus Filecoin Calibration
+const networks = [mainnet, sepolia, polygon, localhost, filecoinCalibration];
 
 /**
  * Minimal AppKit type describing only the parts we use.
@@ -136,15 +164,32 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isAuthenticated = !!(user?.isConnected && session);
   const isConnected = !!user?.isConnected;
 
+  // Debug authentication state changes
+  useEffect(() => {
+    console.log('Web3Provider - Auth state changed:', {
+      isConnected,
+      isAuthenticated,
+      userAddress: user?.address,
+      hasSession: !!session,
+      sessionAddress: session?.address
+    });
+  }, [isConnected, isAuthenticated, user?.address, session?.address]);
+
   // --- restore session from localStorage (client-only)
   useEffect(() => {
+    console.log('Web3Provider - Attempting to restore session from localStorage');
     try {
       const saved = localStorage.getItem("sealguard_session");
-      if (!saved) return;
+      if (!saved) {
+        console.log('Web3Provider - No saved session found');
+        return;
+      }
       const parsed = JSON.parse(saved) as { expiresAt: string } & Omit<Session, "expiresAt">;
       if (new Date(parsed.expiresAt) > new Date()) {
+        console.log('Web3Provider - Restored valid session for address:', parsed.address);
         setSession({ ...parsed, expiresAt: new Date(parsed.expiresAt) });
       } else {
+        console.log('Web3Provider - Session expired, removing from localStorage');
         localStorage.removeItem("sealguard_session");
       }
     } catch (err) {
@@ -170,6 +215,11 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (typeof appKit.subscribeProviders === "function") {
         unsubscribeFn = appKit.subscribeProviders((state: ProvidersMap) => {
           const eip155 = state["eip155"];
+          console.log('Web3Provider - Provider state changed:', { 
+            isConnected: eip155?.isConnected, 
+            address: eip155?.address, 
+            chainId: eip155?.chainId 
+          });
 
           if (eip155?.isConnected && eip155.address && eip155.chainId && eip155.provider) {
             try {
@@ -184,11 +234,28 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 try {
                   const s = await ethersProvider.getSigner();
                   setSigner(s);
-                  setUser({
-                    address: eip155.address,
-                    chainId: eip155.chainId,
-                    isConnected: true,
-                  });
+                  const newUser = {
+                     address: eip155.address,
+                     chainId: eip155.chainId,
+                     isConnected: true,
+                   };
+                   console.log('Web3Provider - Setting user:', newUser);
+                   setUser(newUser);
+                   
+                   // Auto-switch to Filecoin Calibration if not already on it
+                    const FILECOIN_CALIBRATION_CHAIN_ID = 314159;
+                    if (eip155.chainId !== FILECOIN_CALIBRATION_CHAIN_ID) {
+                      console.log('Web3Provider - Auto-switching to Filecoin Calibration network');
+                      try {
+                        // Show user-friendly notification
+                         toast.loading('Switching to Filecoin Calibration network...', { id: 'network-switch' });
+                         await switchChain(FILECOIN_CALIBRATION_CHAIN_ID);
+                         toast.success('Successfully switched to Filecoin Calibration!', { id: 'network-switch' });
+                       } catch (switchError) {
+                         console.warn('Web3Provider - Failed to auto-switch network:', switchError);
+                         toast.error('Failed to switch network. Please switch manually to Filecoin Calibration.', { id: 'network-switch' });
+                      }
+                    }
                   setIsLoading(false);
                 } catch (err) {
                   // couldn't get signer
@@ -207,6 +274,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
           } else {
             // not connected (or provider removed)
+            console.log('Web3Provider - Wallet disconnected, clearing state');
             setProvider(null);
             setSigner(null);
             setUser(null);
@@ -329,8 +397,10 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
         expiresAt: expirationTime,
       };
 
+      console.log('Web3Provider - Creating new session for address:', user.address);
       setSession(newSession);
       localStorage.setItem("sealguard_session", JSON.stringify(newSession));
+      console.log('Web3Provider - Session saved to localStorage');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       // eslint-disable-next-line no-console
@@ -373,11 +443,34 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!provider) throw new Error("No provider available");
       // provider.send exists on BrowserProvider instance
       await provider.send("wallet_switchEthereumChain", [{ chainId: `0x${chainId.toString(16)}` }]);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      // eslint-disable-next-line no-console
-      console.error("Failed to switch chain:", err);
-      setError(message || "Failed to switch chain");
+    } catch (err: any) {
+      // If the chain hasn't been added to MetaMask, add it
+      if (err.code === 4902 && chainId === 314159) {
+        try {
+          if (!provider) throw new Error("No provider available for adding network");
+          await provider.send("wallet_addEthereumChain", [{
+            chainId: `0x${chainId.toString(16)}`,
+            chainName: "Filecoin Calibration",
+            nativeCurrency: {
+              name: "Test Filecoin",
+              symbol: "tFIL",
+              decimals: 18,
+            },
+            rpcUrls: ["https://api.calibration.node.glif.io/rpc/v1"],
+            blockExplorerUrls: ["https://calibration.filscan.io"],
+          }]);
+          // After adding, try to switch again
+          await provider.send("wallet_switchEthereumChain", [{ chainId: `0x${chainId.toString(16)}` }]);
+        } catch (addError: unknown) {
+          const addMessage = addError instanceof Error ? addError.message : String(addError);
+          console.error("Failed to add Filecoin Calibration network:", addError);
+          setError(addMessage || "Failed to add network");
+        }
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("Failed to switch chain:", err);
+        setError(message || "Failed to switch chain");
+      }
     }
   };
 
