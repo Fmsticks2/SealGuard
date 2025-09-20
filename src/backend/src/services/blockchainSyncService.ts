@@ -3,7 +3,6 @@ import { User } from '../models/User';
 import { VerificationProof } from '../models/VerificationProof';
 import logger from '../utils/logger';
 import { io } from '../app';
-import { DocumentStatus, DocumentLifecycle, StatusMapper } from '../types/status';
 
 export interface BlockchainEvent {
   eventName: string;
@@ -126,8 +125,8 @@ class BlockchainSyncService {
       });
 
       // Update document status and lifecycle
-      const newStatus = event.isValid ? DocumentStatus.VERIFIED : DocumentStatus.REJECTED;
-      const newLifecycle = event.isValid ? DocumentLifecycle.ACTIVE : DocumentLifecycle.REJECTED;
+      const newStatus = event.isValid ? 'verified' : 'rejected';
+      const newLifecycle = event.isValid ? 'ACTIVE' : 'REJECTED';
 
       document.status = newStatus;
       document.lifecycle = newLifecycle;

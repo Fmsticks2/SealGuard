@@ -8,12 +8,21 @@ import {
   AuthenticatedRequest
 } from '../middleware/auth';
 import { db } from '../config/database';
-import {
-  VerificationStatus,
-  DocumentStatus,
-  StatusMapper,
-  isValidVerificationStatus
-} from '../types/status';
+
+// Define enums locally
+enum VerificationStatus {
+  PENDING = 'PENDING',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  VERIFIED = 'VERIFIED',
+  FAILED = 'FAILED'
+}
+
+enum DocumentStatus {
+  PENDING = 'PENDING',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED'
+}
 
 const router = Router();
 
@@ -376,11 +385,8 @@ router.put('/records/:id/status',
       });
 
       // Update document status based on verification result
-      if (status === VerificationStatus.COMPLETED) {
-        // Determine if verification was successful based on result data
-        const isValid = result?.isValid !== false; // Default to true if not specified
-        const newDocStatus = isValid ? DocumentStatus.VERIFIED : DocumentStatus.REJECTED;
-        await documentService.updateDocumentStatus(record.documentId, newDocStatus);
+      if (status === VerificationStatus.VERIFIED) {
+        await documentService.updateDocumentStatus(record.documentId, DocumentStatus.VERIFIED);
       } else if (status === VerificationStatus.FAILED) {
         await documentService.updateDocumentStatus(record.documentId, DocumentStatus.REJECTED);
       }

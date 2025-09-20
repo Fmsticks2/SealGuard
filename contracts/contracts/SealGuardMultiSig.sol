@@ -37,7 +37,7 @@ contract SealGuardMultiSig is ReentrancyGuard {
     struct MultiSigProposal {
         uint256 id;
         OperationType operationType;
-        uint256 documentId;
+        bytes32 documentId;
         address proposer;
         address[] requiredSigners;
         address[] approvers;
@@ -57,26 +57,25 @@ contract SealGuardMultiSig is ReentrancyGuard {
         uint256 approvalThreshold; // Percentage (e.g., 67 for 67%)
         uint256 proposalExpiry; // Time in seconds
         bool requiresUnanimous;
-        mapping(OperationType => uint256) operationThresholds;
     }
     
     // State variables
     uint256 private _proposalIds;
     mapping(uint256 => MultiSigProposal) public proposals;
-    mapping(uint256 => MultiSigConfig) public documentConfigs; // document ID -> config
+    mapping(bytes32 => MultiSigConfig) public documentConfigs; // document ID -> config
     mapping(string => MultiSigConfig) public typeConfigs; // document type -> config
     MultiSigConfig public defaultConfig;
     
     // Mappings for efficient queries
     mapping(address => uint256[]) public userProposals;
-    mapping(uint256 => uint256[]) public documentProposals;
+    mapping(bytes32 => uint256[]) public documentProposals;
     mapping(OperationType => uint256[]) public operationProposals;
     
     // Events
     event ProposalCreated(
         uint256 indexed proposalId,
         OperationType indexed operationType,
-        uint256 indexed documentId,
+        bytes32 indexed documentId,
         address proposer,
         uint256 requiredApprovals
     );
@@ -100,8 +99,8 @@ contract SealGuardMultiSig is ReentrancyGuard {
         string reason
     );
     
-    event MultiSigConfigUpdated(
-        uint256 indexed documentId,
+    event ConfigUpdated(
+        bytes32 indexed documentId,
         uint256 minSigners,
         uint256 approvalThreshold
     );
@@ -145,14 +144,6 @@ contract SealGuardMultiSig is ReentrancyGuard {
         defaultConfig.approvalThreshold = 67; // 67%
         defaultConfig.proposalExpiry = 7 days;
         defaultConfig.requiresUnanimous = false;
-        
-        // Set operation-specific thresholds
-        defaultConfig.operationThresholds[OperationType.DOCUMENT_VERIFICATION] = 51; // 51%
-        defaultConfig.operationThresholds[OperationType.OWNERSHIP_TRANSFER] = 67; // 67%
-        defaultConfig.operationThresholds[OperationType.ACCESS_GRANT] = 51; // 51%
-        defaultConfig.operationThresholds[OperationType.DOCUMENT_ARCHIVE] = 75; // 75%
-        defaultConfig.operationThresholds[OperationType.CONFIG_UPDATE] = 80; // 80%
-        defaultConfig.operationThresholds[OperationType.EMERGENCY_ACTION] = 90; // 90%
     }
     
     /**
@@ -165,11 +156,11 @@ contract SealGuardMultiSig is ReentrancyGuard {
      */
     function createProposal(
         OperationType operationType,
-        uint256 documentId,
+        bytes32 documentId,
         address[] memory requiredSigners,
         bytes memory proposalData,
         string memory reason
-    ) external onlyAuthorized nonReentrant returns (uint256) {
+    ) public onlyAuthorized nonReentrant returns (uint256) {
         require(requiredSigners.length >= 2, "Minimum 2 signers required");
         require(requiredSigners.length <= 10, "Maximum 10 signers allowed");
         
@@ -197,7 +188,7 @@ contract SealGuardMultiSig is ReentrancyGuard {
         
         // Add to tracking mappings
         userProposals[msg.sender].push(proposalId);
-        if (documentId > 0) {
+        if (documentId != bytes32(0)) {
             documentProposals[documentId].push(proposalId);
         }
         operationProposals[operationType].push(proposalId);
@@ -316,14 +307,14 @@ contract SealGuardMultiSig is ReentrancyGuard {
         
         // Submit verification proof to registry
         registry.submitVerificationProof(
-            proposal.documentId,
+            uint256(proposal.documentId),
             proofHash,
             proofData,
             isValid
         );
         
         // Mark as multi-sig verified
-        registry.markMultiSigVerified(proposal.documentId, proposal.id);
+        registry.markMultiSigVerified(uint256(proposal.documentId), proposal.id);
     }
     
     /**
@@ -335,10 +326,10 @@ contract SealGuardMultiSig is ReentrancyGuard {
         address newOwner = abi.decode(proposal.proposalData, (address));
         
         // Transfer document ownership
-        registry.transferDocumentOwnership(proposal.documentId, newOwner);
+        registry.transferDocumentOwnership(uint256(proposal.documentId), newOwner);
         
         // Mark as multi-sig verified
-        registry.markMultiSigVerified(proposal.documentId, proposal.id);
+        registry.markMultiSigVerified(uint256(proposal.documentId), proposal.id);
     }
     
     /**
@@ -356,10 +347,10 @@ contract SealGuardMultiSig is ReentrancyGuard {
      */
     function _executeDocumentArchive(MultiSigProposal storage proposal) internal {
         // Archive the document
-        registry.archiveDocument(proposal.documentId);
+        registry.archiveDocument(uint256(proposal.documentId));
         
         // Mark as multi-sig verified
-        registry.markMultiSigVerified(proposal.documentId, proposal.id);
+        registry.markMultiSigVerified(uint256(proposal.documentId), proposal.id);
     }
     
     /**
@@ -368,7 +359,7 @@ contract SealGuardMultiSig is ReentrancyGuard {
      * @param operationType The operation type
      */
     function _getConfigForDocument(
-        uint256 documentId,
+        bytes32 documentId,
         OperationType operationType
     ) internal view returns (MultiSigConfig memory) {
         // Try document-specific config first
@@ -377,8 +368,8 @@ contract SealGuardMultiSig is ReentrancyGuard {
         }
         
         // Try document type config
-        if (documentId > 0) {
-            SealGuardRegistry.Document memory doc = registry.getDocument(documentId);
+        if (documentId != bytes32(0)) {
+            SealGuardRegistry.Document memory doc = registry.getDocument(uint256(documentId));
             if (typeConfigs[doc.documentType].minSigners > 0) {
                 return typeConfigs[doc.documentType];
             }
@@ -387,6 +378,8 @@ contract SealGuardMultiSig is ReentrancyGuard {
         // Fall back to default config
         return defaultConfig;
     }
+    
+
     
     /**
      * @dev Calculate required approvals based on configuration
@@ -403,10 +396,7 @@ contract SealGuardMultiSig is ReentrancyGuard {
             return signerCount;
         }
         
-        uint256 threshold = config.operationThresholds[operationType];
-        if (threshold == 0) {
-            threshold = config.approvalThreshold;
-        }
+        uint256 threshold = config.approvalThreshold;
         
         return (signerCount * threshold + 99) / 100; // Ceiling division
     }
@@ -420,34 +410,34 @@ contract SealGuardMultiSig is ReentrancyGuard {
         view 
         proposalExists(proposalId) 
         returns (
-            uint256 id,
-            OperationType operationType,
-            uint256 documentId,
-            address proposer,
-            address[] memory requiredSigners,
-            address[] memory approvers,
-            uint256 requiredApprovals,
-            uint256 currentApprovals,
-            uint256 createdAt,
-            uint256 expiresAt,
-            ProposalState state,
-            string memory reason
+            uint256,
+            OperationType,
+            bytes32,
+            address,
+            address[] memory,
+            address[] memory,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            ProposalState,
+            string memory
         ) 
     {
-        MultiSigProposal storage proposal = proposals[proposalId];
+        MultiSigProposal storage p = proposals[proposalId];
         return (
-            proposal.id,
-            proposal.operationType,
-            proposal.documentId,
-            proposal.proposer,
-            proposal.requiredSigners,
-            proposal.approvers,
-            proposal.requiredApprovals,
-            proposal.currentApprovals,
-            proposal.createdAt,
-            proposal.expiresAt,
-            proposal.state,
-            proposal.reason
+            p.id,
+            p.operationType,
+            p.documentId,
+            p.proposer,
+            p.requiredSigners,
+            p.approvers,
+            p.requiredApprovals,
+            p.currentApprovals,
+            p.createdAt,
+            p.expiresAt,
+            p.state,
+            p.reason
         );
     }
     
@@ -481,12 +471,21 @@ contract SealGuardMultiSig is ReentrancyGuard {
      * @dev Get proposals by document
      * @param documentId The document ID
      */
-    function getDocumentProposals(uint256 documentId) 
+    function getDocumentProposals(bytes32 documentId) 
         external 
         view 
         returns (uint256[] memory) 
     {
         return documentProposals[documentId];
+    }
+    
+    /**
+     * @dev Get proposals for a specific document (uint256 version)
+     * @param documentId The document ID
+     * @return Array of proposal IDs
+     */
+    function getDocumentProposals(uint256 documentId) external view returns (uint256[] memory) {
+        return documentProposals[bytes32(documentId)];
     }
     
     /**
@@ -558,5 +557,103 @@ contract SealGuardMultiSig is ReentrancyGuard {
                 proposals[proposalIds[i]].state = ProposalState.EXPIRED;
             }
         }
+    }
+    
+    /**
+     * @dev Create a verification proposal
+     * @param documentId The document ID
+     * @param proofHash Hash of the verification proof
+     * @param proofData Proof data
+     * @param isValid Whether the proof is valid
+     * @return The proposal ID
+     */
+    function createVerificationProposal(
+        uint256 documentId,
+        bytes32 proofHash,
+        string memory proofData,
+        bool isValid
+    ) external returns (uint256) {
+        bytes memory proposalData = abi.encode(proofHash, proofData, isValid);
+        
+        address[] memory requiredSigners = _getRequiredSigners(bytes32(documentId), OperationType.DOCUMENT_VERIFICATION);
+        
+        return createProposal(
+            OperationType.DOCUMENT_VERIFICATION,
+            bytes32(documentId),
+            requiredSigners,
+            proposalData,
+            "Document verification proposal"
+        );
+    }
+    
+    /**
+     * @dev Create an ownership transfer proposal
+     * @param documentId The document ID
+     * @param newOwner The new owner address
+     * @return The proposal ID
+     */
+    function createOwnershipTransferProposal(
+        uint256 documentId,
+        address newOwner
+    ) external returns (uint256) {
+        bytes memory proposalData = abi.encode(newOwner);
+        
+        address[] memory requiredSigners = _getRequiredSigners(bytes32(documentId), OperationType.OWNERSHIP_TRANSFER);
+        
+        return createProposal(
+            OperationType.OWNERSHIP_TRANSFER,
+            bytes32(documentId),
+            requiredSigners,
+            proposalData,
+            "Document ownership transfer proposal"
+        );
+    }
+    
+    /**
+     * @dev Create an archive proposal
+     * @param documentId The document ID
+     * @return The proposal ID
+     */
+    function createArchiveProposal(uint256 documentId) external returns (uint256) {
+        bytes memory proposalData = abi.encode(documentId);
+        
+        address[] memory requiredSigners = _getRequiredSigners(bytes32(documentId), OperationType.DOCUMENT_ARCHIVE);
+        
+        return createProposal(
+            OperationType.DOCUMENT_ARCHIVE,
+            bytes32(documentId),
+            requiredSigners,
+            proposalData,
+            "Document archive proposal"
+        );
+    }
+    
+    /**
+     * @dev Get required signers for a document operation
+     * @param documentId The document ID
+     * @param operationType The operation type
+     */
+    function _getRequiredSigners(
+        bytes32 documentId,
+        OperationType operationType
+    ) internal view returns (address[] memory) {
+        // This is a simplified implementation
+        // In a real system, this would determine signers based on document ownership,
+        // access control roles, and operation type
+        
+        address[] memory signers = new address[](2);
+        
+        if (documentId != bytes32(0)) {
+            SealGuardRegistry.Document memory doc = registry.getDocument(uint256(documentId));
+            signers[0] = doc.owner;
+        } else {
+            signers[0] = msg.sender;
+        }
+        
+        // Add a verifier as second signer
+        // This would typically come from access control or document-specific settings
+        signers[1] = msg.sender; // Placeholder - should be actual verifier
+        
+        return signers;
     }
 }

@@ -81,22 +81,55 @@ contract SealGuardAccessControl is AccessControl, ReentrancyGuard {
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
-        _grantRole(MODERATOR_ROLE, msg.sender);
-        _grantRole(AUDITOR_ROLE, msg.sender);
-        _grantRole(VERIFIER_ROLE, msg.sender);
-        _grantRole(DOCUMENT_MANAGER_ROLE, msg.sender);
-        _grantRole(USER_ROLE, msg.sender);
         
-        // Initialize role hierarchy (higher number = more permissions)
+        // Set up role hierarchy
+        roleHierarchy[ADMIN_ROLE] = 6;
+        roleHierarchy[MODERATOR_ROLE] = 5;
+        roleHierarchy[AUDITOR_ROLE] = 4;
+        roleHierarchy[VERIFIER_ROLE] = 3;
+        roleHierarchy[DOCUMENT_MANAGER_ROLE] = 2;
         roleHierarchy[USER_ROLE] = 1;
-        roleHierarchy[VERIFIER_ROLE] = 2;
-        roleHierarchy[AUDITOR_ROLE] = 3;
-        roleHierarchy[DOCUMENT_MANAGER_ROLE] = 3;
-        roleHierarchy[MODERATOR_ROLE] = 4;
-        roleHierarchy[ADMIN_ROLE] = 5;
         
-        // Set deployer as admin
-        userRoles[msg.sender] = ADMIN_ROLE;
+        // Set up role admin relationships
+        _setRoleAdmin(MODERATOR_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(AUDITOR_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(VERIFIER_ROLE, MODERATOR_ROLE);
+        _setRoleAdmin(DOCUMENT_MANAGER_ROLE, AUDITOR_ROLE);
+        _setRoleAdmin(USER_ROLE, DOCUMENT_MANAGER_ROLE);
+    }
+    
+    /**
+     * @dev Check if an account has a role or a higher role in the hierarchy
+     * @param account The account to check
+     * @param role The minimum role required
+     */
+    function hasRoleOrHigher(address account, bytes32 role) public view returns (bool) {
+        // Check if user has the exact role
+        if (hasRole(role, account)) {
+            return true;
+        }
+        
+        // Check if user has a higher role in the hierarchy
+        uint8 requiredLevel = roleHierarchy[role];
+        
+        // Check all roles with higher hierarchy levels
+        if (requiredLevel < roleHierarchy[ADMIN_ROLE] && hasRole(ADMIN_ROLE, account)) {
+            return true;
+        }
+        if (requiredLevel < roleHierarchy[MODERATOR_ROLE] && hasRole(MODERATOR_ROLE, account)) {
+            return true;
+        }
+        if (requiredLevel < roleHierarchy[AUDITOR_ROLE] && hasRole(AUDITOR_ROLE, account)) {
+            return true;
+        }
+        if (requiredLevel < roleHierarchy[VERIFIER_ROLE] && hasRole(VERIFIER_ROLE, account)) {
+            return true;
+        }
+        if (requiredLevel < roleHierarchy[DOCUMENT_MANAGER_ROLE] && hasRole(DOCUMENT_MANAGER_ROLE, account)) {
+            return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -247,58 +280,6 @@ contract SealGuardAccessControl is AccessControl, ReentrancyGuard {
         return true;
     }
     
-    /**
-     * @dev Assign role to user (only admin can assign roles)
-     * @param user The address to assign role to
-     * @param role The role to assign
-     */
-    function assignUserRole(address user, bytes32 role) external onlyRole(ADMIN_ROLE) {
-        require(user != address(0), "Invalid user address");
-        require(roleHierarchy[role] > 0, "Invalid role");
-        
-        // Revoke previous role if exists
-        bytes32 currentRole = userRoles[user];
-        if (currentRole != bytes32(0)) {
-            _revokeRole(currentRole, user);
-        }
-        
-        // Grant new role
-        _grantRole(role, user);
-        userRoles[user] = role;
-    }
-    
-    /**
-     * @dev Check if user has required role or higher in hierarchy
-     * @param user The address to check
-     * @param requiredRole The minimum required role
-     */
-    function hasRoleOrHigher(address user, bytes32 requiredRole) external view returns (bool) {
-        bytes32 userRole = userRoles[user];
-        if (userRole == bytes32(0)) return false;
-        
-        return roleHierarchy[userRole] >= roleHierarchy[requiredRole];
-    }
-    
-    /**
-     * @dev Get user's current role
-     * @param user The address to check
-     */
-    function getUserRole(address user) external view returns (bytes32) {
-        return userRoles[user];
-    }
-    
-    /**
-     * @dev Check if user can perform action based on role hierarchy
-     * @param user The address to check
-     * @param requiredLevel The minimum hierarchy level required
-     */
-    function canPerformAction(address user, uint8 requiredLevel) external view returns (bool) {
-        bytes32 userRole = userRoles[user];
-        if (userRole == bytes32(0)) return false;
-        
-        return roleHierarchy[userRole] >= requiredLevel;
-    }
-
     /**
      * @dev Join an organization
      * @param organizationId The ID of the organization

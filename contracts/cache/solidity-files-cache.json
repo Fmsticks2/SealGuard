@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "C:\\Users\\User\\Desktop\\SealGuard\\contracts\\contracts\\SealGuardAccessControl.sol": {
-      "lastModificationDate": 1757538016687,
-      "contentHash": "62d5a7c9923ba47b450acc01a80b1410",
+      "lastModificationDate": 1758374081293,
+      "contentHash": "2d6f4dfb93ed91dcbbed3ed58a5695c2",
       "sourceName": "contracts/SealGuardAccessControl.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -12,6 +12,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -51,6 +52,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -87,6 +89,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -127,6 +130,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -163,6 +167,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -201,6 +206,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -237,6 +243,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -273,6 +280,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -301,8 +309,8 @@
       ]
     },
     "C:\\Users\\User\\Desktop\\SealGuard\\contracts\\contracts\\SealGuardRegistry.sol": {
-      "lastModificationDate": 1757538047914,
-      "contentHash": "b7c295a6f3be571aab662277daf8f66a",
+      "lastModificationDate": 1758146209157,
+      "contentHash": "dcdb9203473634f9e210f31bf4af14b8",
       "sourceName": "contracts/SealGuardRegistry.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -311,6 +319,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -330,13 +339,56 @@
       },
       "imports": [
         "@openzeppelin/contracts/access/Ownable.sol",
-        "@openzeppelin/contracts/utils/ReentrancyGuard.sol"
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+        "./SealGuardAccessControl.sol",
+        "./SealGuardMultiSig.sol"
       ],
       "versionPragmas": [
         "^0.8.19"
       ],
       "artifacts": [
         "SealGuardRegistry"
+      ]
+    },
+    "C:\\Users\\User\\Desktop\\SealGuard\\contracts\\contracts\\SealGuardMultiSig.sol": {
+      "lastModificationDate": 1758374164204,
+      "contentHash": "4c5cf20e37e926b90954b8bb2365d8f8",
+      "sourceName": "contracts/SealGuardMultiSig.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+        "./SealGuardAccessControl.sol",
+        "./SealGuardRegistry.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "SealGuardMultiSig"
       ]
     }
   }

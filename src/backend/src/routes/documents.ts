@@ -418,7 +418,7 @@ router.post('/:id/verify',
       }
 
       // Check if already verified
-      if (document.status === 'verified') {
+      if (document.status === 'VERIFIED') {
         return res.status(400).json({
           success: false,
           message: 'Document already verified',

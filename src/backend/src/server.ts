@@ -3,7 +3,6 @@ import app, { server } from './app';
 import { db } from './config/database';
 import logger from './utils/logger';
 import { eventMonitorService } from './services/eventMonitorService';
-import { enhancedBlockchainService } from './services/enhancedBlockchainService';
 
 // Load environment variables
 dotenv.config();
@@ -27,20 +26,6 @@ async function startServer() {
     logger.info('🔗 Starting blockchain event monitoring...');
     await eventMonitorService.startMonitoring();
     logger.info('✅ Blockchain event monitoring started');
-
-    // Warm up blockchain cache
-    await enhancedBlockchainService.warmUpCache();
-    logger.info('✅ Blockchain caching service initialized');
-
-    // Schedule periodic cache cleanup and sync
-    setInterval(async () => {
-      try {
-        await enhancedBlockchainService.syncDatabaseWithBlockchain();
-        logger.info('Periodic blockchain sync completed');
-      } catch (error) {
-        logger.error('Periodic blockchain sync failed', { error });
-      }
-    }, 30 * 60 * 1000); // Every 30 minutes
 
     // Start the server with WebSocket support
     server.listen(PORT, () => {

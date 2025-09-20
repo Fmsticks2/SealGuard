@@ -135,9 +135,8 @@ model SystemConfig {
 }
 
 // Note: SQLite doesn't support enums, so we use string constants
-// Status values are now centralized in src/types/status.ts
-// Valid values for role: USER, VERIFIER, ADMIN, AUDITOR
+// Valid values for role: ADMIN, MODERATOR, USER, AUDITOR
 // Valid values for category: LEGAL, MEDICAL, FINANCIAL, IDENTITY, CONTRACT, CERTIFICATE, OTHER
-// Valid values for document status: pending, processing, verified, rejected, expired, archived
-// Valid values for verification status: PENDING, IN_PROGRESS, COMPLETED, FAILED
+// Valid values for document status: PENDING, PROCESSING, VERIFIED, FAILED, EXPIRED, ARCHIVED
+// Valid values for verification status: PENDING, PROCESSING, CONFIRMED, FAILED, CANCELLED
 // Valid values for notification type: INFO, SUCCESS, WARNING, ERROR, VERIFICATION_COMPLETE, VERIFICATION_FAILED, DOCUMENT_UPLOADED, DOCUMENT_EXPIRED

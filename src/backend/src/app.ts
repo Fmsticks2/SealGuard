@@ -18,7 +18,6 @@ import documentRoutes from './routes/documents';
 import verificationRoutes from './routes/verification';
 import uploadRoutes from './routes/upload';
 import notificationRoutes from './routes/notifications';
-import cacheRoutes from './routes/cache';
 
 const app = express();
 const server = createServer(app);
@@ -131,7 +130,6 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/cache', cacheRoutes);
 
 // Web3 health check with contract connectivity
 app.get('/api/web3/health', (_req, res) => {
