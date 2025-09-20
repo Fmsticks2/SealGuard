@@ -351,8 +351,8 @@
       ]
     },
     "C:\\Users\\User\\Desktop\\SealGuard\\contracts\\contracts\\SealGuardMultiSig.sol": {
-      "lastModificationDate": 1758374164204,
-      "contentHash": "4c5cf20e37e926b90954b8bb2365d8f8",
+      "lastModificationDate": 1758375406944,
+      "contentHash": "4b0391d3772288a8455c319011da8751",
       "sourceName": "contracts/SealGuardMultiSig.sol",
       "solcConfig": {
         "version": "0.8.20",

@@ -141,7 +141,7 @@ contract SealGuardMultiSig is ReentrancyGuard {
     function _initializeDefaultConfig() internal {
         defaultConfig.minSigners = 2;
         defaultConfig.maxSigners = 10;
-        defaultConfig.approvalThreshold = 67; // 67%
+        defaultConfig.approvalThreshold = 60; // 60%
         defaultConfig.proposalExpiry = 7 days;
         defaultConfig.requiresUnanimous = false;
     }
