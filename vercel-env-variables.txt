@@ -1,36 +1,22 @@
+# Copy and paste these environment variables into Vercel
+
 # Web3 Configuration
-# Get your project ID from https://cloud.walletconnect.com
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id_here
 
-# Contract Addresses - Filecoin Calibration Testnet (deployed)
+# Contract Addresses - Filecoin Calibration Testnet
 NEXT_PUBLIC_REGISTRY_CONTRACT=0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F
 NEXT_PUBLIC_ACCESS_CONTROL_CONTRACT=0xF565086417Bf8ba76e4FaFC9F0088818eA027539
 NEXT_PUBLIC_MULTISIG_CONTRACT=0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8
 
-# For other networks, deploy contracts first and update addresses above
-# Ethereum Mainnet: NEXT_PUBLIC_REGISTRY_CONTRACT=0x...
-# Sepolia Testnet: NEXT_PUBLIC_REGISTRY_CONTRACT=0x...
-# Polygon Mainnet: NEXT_PUBLIC_REGISTRY_CONTRACT=0x...
-
 # Network Configuration
-NEXT_PUBLIC_DEFAULT_CHAIN_ID=11155111
-NEXT_PUBLIC_NETWORK_NAME=Sepolia
+NEXT_PUBLIC_DEFAULT_CHAIN_ID=314159
+NEXT_PUBLIC_NETWORK_NAME=Filecoin Calibration
 
-# RPC URLs (Alchemy - Production Ready)
+# RPC URLs
 NEXT_PUBLIC_ETHEREUM_RPC=https://eth-mainnet.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
 NEXT_PUBLIC_SEPOLIA_RPC=https://eth-sepolia.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
 NEXT_PUBLIC_POLYGON_RPC=https://polygon-mainnet.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
 NEXT_PUBLIC_MUMBAI_RPC=https://polygon-mumbai.g.alchemy.com/v2/O6r4vg9nJLb0MLjOk1wTM
-
-# Alternative Public RPC URLs (Backup)
-# NEXT_PUBLIC_ETHEREUM_RPC=https://cloudflare-eth.com
-# NEXT_PUBLIC_SEPOLIA_RPC=https://rpc.sepolia.org
-# NEXT_PUBLIC_POLYGON_RPC=https://polygon-rpc.com
-# NEXT_PUBLIC_MUMBAI_RPC=https://rpc-mumbai.maticvigil.com
-
-# Etherscan API Keys (for contract verification)
-ETHERSCAN_API_KEY=your_etherscan_api_key
-POLYGONSCAN_API_KEY=your_polygonscan_api_key
 
 # IPFS/Filecoin Configuration
 NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
@@ -39,9 +25,13 @@ NEXT_PUBLIC_FILECOIN_RPC=https://api.node.glif.io
 # Application Settings
 NEXT_PUBLIC_APP_NAME=SealGuard
 NEXT_PUBLIC_APP_DESCRIPTION=Decentralized Document Verification Platform
-NEXT_PUBLIC_APP_URL=https://sealguard.app
+NEXT_PUBLIC_APP_URL=https://seal-guard.vercel.app
 
-# Development Settings
+# Feature Flags
 NEXT_PUBLIC_ENABLE_ANALYTICS=true
 NEXT_PUBLIC_ENABLE_ONRAMP=true
 NEXT_PUBLIC_DEBUG_MODE=false
+
+# Contract Verification (Optional - only needed for development)
+ETHERSCAN_API_KEY=MT7FIKINY6YX2NE75TZTIA1PYSUFZNBZ8U
+POLYGONSCAN_API_KEY=your_polygonscan_api_key

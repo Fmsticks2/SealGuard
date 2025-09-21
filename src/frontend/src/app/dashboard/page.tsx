@@ -6,6 +6,7 @@ import { useWeb3Auth } from '@/hooks/useWeb3Auth'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview'
+import { WalletConnect } from '@/components/Web3/WalletConnect'
 
 export default function DashboardPage() {
   const { user, isConnected, isAuthenticated, isLoading } = useWeb3Auth()
@@ -19,11 +20,11 @@ export default function DashboardPage() {
       user: user?.address 
     });
     
-    if (!isLoading && (!isConnected || !isAuthenticated)) {
-      console.log('Dashboard page - Not authenticated, redirecting to login');
+    if (!isLoading && !isConnected) {
+      console.log('Dashboard page - Wallet not connected, redirecting to login');
       router.push('/login')
     }
-  }, [isConnected, isAuthenticated, isLoading, router])
+  }, [isConnected, isLoading, router])
 
   if (isLoading) {
     return (
@@ -33,10 +34,31 @@ export default function DashboardPage() {
     )
   }
 
-  if (!isConnected || !isAuthenticated || !user) {
+  if (!isConnected || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  // Show SIWE authentication prompt if wallet is connected but not authenticated
+  if (isConnected && user && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Complete Authentication
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Please sign the message to complete your authentication and access the dashboard.
+            </p>
+          </div>
+          <div className="bg-white py-8 px-6 shadow-lg rounded-lg border border-gray-200">
+            <WalletConnect onSuccess={() => router.push('/dashboard')} />
+          </div>
+        </div>
       </div>
     )
   }
