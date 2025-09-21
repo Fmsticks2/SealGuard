@@ -44,8 +44,10 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
     });
     
     if (user?.isConnected && !session && showSignIn) {
-      console.log('WalletConnect - Moving to sign step');
+      console.log('WalletConnect - Moving to sign step and auto-signing');
       setStep('sign');
+      // Automatically trigger SIWE signing when wallet connects
+      signInWithEthereum();
     } else if (isAuthenticated) {
       console.log('WalletConnect - Authentication complete, calling onSuccess');
       setStep('complete');
@@ -54,7 +56,7 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
       console.log('WalletConnect - Moving to connect step');
       setStep('connect');
     }
-  }, [user, session, isAuthenticated, showSignIn, onSuccess]);
+  }, [user, session, isAuthenticated, showSignIn, onSuccess, signInWithEthereum]);
 
   const handleConnect = async () => {
     clearError();
