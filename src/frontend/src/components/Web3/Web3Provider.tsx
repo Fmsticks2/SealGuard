@@ -12,7 +12,7 @@ import toast from "react-hot-toast";
 /**
  * Configuration (update env / metadata as needed)
  */
-const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "your-project-id";
+const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || "your-project-id";
 
 const metadata = {
   name: "SealGuard",
