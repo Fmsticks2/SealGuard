@@ -46,6 +46,15 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization' },
         ],
       },
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://relay.walletconnect.com https://pulse.walletconnect.org; object-src 'none'; base-uri 'self'; connect-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://relay.walletconnect.com https://pulse.walletconnect.org wss://relay.walletconnect.com wss://relay.walletconnect.org;"
+          },
+        ],
+      },
     ];
   },
   async rewrites() {
