@@ -186,8 +186,15 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       const parsed = JSON.parse(saved) as { expiresAt: string } & Omit<Session, "expiresAt">;
       if (new Date(parsed.expiresAt) > new Date()) {
-        console.log('Web3Provider - Restored valid session for address:', parsed.address);
-        setSession({ ...parsed, expiresAt: new Date(parsed.expiresAt) });
+        // Only restore session if it matches the currently connected user
+        if (user?.address && parsed.address.toLowerCase() === user.address.toLowerCase()) {
+          console.log('Web3Provider - Restored valid session for address:', parsed.address);
+          setSession({ ...parsed, expiresAt: new Date(parsed.expiresAt) });
+        } else if (user?.address) {
+          console.log('Web3Provider - Session address mismatch, removing from localStorage');
+          localStorage.removeItem("sealguard_session");
+        }
+        // If no user is connected yet, wait for wallet connection
       } else {
         console.log('Web3Provider - Session expired, removing from localStorage');
         localStorage.removeItem("sealguard_session");
@@ -198,7 +205,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Failed to restore session:", err);
       localStorage.removeItem("sealguard_session");
     }
-  }, []);
+  }, [user?.address]);
 
   // --- subscribe to Reown AppKit providers
   useEffect(() => {

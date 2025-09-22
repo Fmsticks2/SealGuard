@@ -14,13 +14,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     console.log('Login page - Auth state changed:', { isConnected, isAuthenticated, user: user?.address })
-    // Redirect to dashboard when wallet is connected, regardless of SIWE authentication
-    // The dashboard will handle the authentication requirement
-    if (isConnected && user) {
-      console.log('Login page - Wallet connected, redirecting to dashboard')
+    // Redirect to dashboard when wallet is connected AND authenticated
+    // This ensures the user has completed both wallet connection and SIWE signing
+    if (isConnected && isAuthenticated && user) {
+      console.log('Login page - Wallet connected and authenticated, redirecting to dashboard')
       router.push('/dashboard')
     }
-  }, [isConnected, user, router])
+  }, [isConnected, isAuthenticated, user, router])
 
   const handleLoginSuccess = () => {
     toast.success('Wallet connected and authenticated!')

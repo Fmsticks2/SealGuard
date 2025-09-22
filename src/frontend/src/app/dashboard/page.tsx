@@ -24,7 +24,7 @@ export default function DashboardPage() {
       console.log('Dashboard page - Wallet not connected, redirecting to login');
       router.push('/login')
     }
-  }, [isConnected, isLoading, router])
+  }, [isConnected, isAuthenticated, isLoading, router])
 
   if (isLoading) {
     return (
