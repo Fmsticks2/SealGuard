@@ -6,7 +6,7 @@ import { useWeb3Auth } from '@/hooks/useWeb3Auth'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview'
-import { WalletConnect } from '@/components/Web3/WalletConnect'
+import { ReownConnect } from '@/components/Web3/ReownConnect'
 
 export default function DashboardPage() {
   const { user, isConnected, isAuthenticated, isLoading } = useWeb3Auth()
@@ -56,7 +56,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="bg-white py-8 px-6 shadow-lg rounded-lg border border-gray-200">
-            <WalletConnect onSuccess={() => router.push('/dashboard')} />
+            <ReownConnect onSuccess={() => router.push('/dashboard')} />
           </div>
         </div>
       </div>

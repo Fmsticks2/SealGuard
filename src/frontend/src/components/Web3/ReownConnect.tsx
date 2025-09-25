@@ -7,13 +7,13 @@ import { useWeb3Auth } from '../../hooks/useWeb3Auth';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 
-interface WalletConnectProps {
+interface ReownConnectProps {
   onSuccess?: () => void;
   showSignIn?: boolean;
   className?: string;
 }
 
-export const WalletConnect: React.FC<WalletConnectProps> = ({
+export const ReownConnect: React.FC<ReownConnectProps> = ({
   onSuccess,
   showSignIn = true,
   className = ''
@@ -35,7 +35,7 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
   const [step, setStep] = useState<'connect' | 'sign' | 'complete'>('connect');
 
   useEffect(() => {
-    console.log('WalletConnect - State changed:', {
+    console.log('ReownConnect - State changed:', {
       userConnected: user?.isConnected,
       hasSession: !!session,
       isAuthenticated,
@@ -44,19 +44,19 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
     });
     
     if (user?.isConnected && !session && showSignIn && step !== 'sign') {
-      console.log('WalletConnect - Moving to sign step and auto-signing');
+      console.log('ReownConnect - Moving to sign step and auto-signing');
       setStep('sign');
       // Automatically trigger SIWE signing when wallet connects
       signInWithEthereum();
     } else if (isAuthenticated && step !== 'complete') {
-      console.log('WalletConnect - Authentication complete, calling onSuccess');
+      console.log('ReownConnect - Authentication complete, calling onSuccess');
       setStep('complete');
       // Use setTimeout to ensure state updates are processed
       setTimeout(() => {
         onSuccess?.();
       }, 100);
     } else if (!user?.isConnected && !isAuthenticated) {
-      console.log('WalletConnect - Moving to connect step');
+      console.log('ReownConnect - Moving to connect step');
       setStep('connect');
     }
   }, [user, session, isAuthenticated, showSignIn, step, onSuccess, signInWithEthereum]);
@@ -307,7 +307,7 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
           </p>
           <div className="flex justify-center space-x-4">
             <div className="text-xs text-gray-400">MetaMask</div>
-            <div className="text-xs text-gray-400">WalletConnect</div>
+            <div className="text-xs text-gray-400">Reown</div>
             <div className="text-xs text-gray-400">Coinbase Wallet</div>
             <div className="text-xs text-gray-400">Rainbow</div>
           </div>
@@ -317,4 +317,4 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({
   );
 };
 
-export default WalletConnect;
+export default ReownConnect;

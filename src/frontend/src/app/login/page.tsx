@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Shield, ArrowLeft } from 'lucide-react'
 import { useWeb3Auth } from '@/hooks/useWeb3Auth'
-import { WalletConnect } from '@/components/Web3/WalletConnect'
+import { ReownConnect } from '@/components/Web3/ReownConnect'
 import toast from 'react-hot-toast'
 
 export default function LoginPage() {
@@ -46,7 +46,7 @@ export default function LoginPage() {
 
         {/* Web3 Login */}
         <div className="bg-white py-8 px-6 shadow-lg rounded-lg border border-gray-200">
-          <WalletConnect onSuccess={handleLoginSuccess} />
+          <ReownConnect onSuccess={handleLoginSuccess} />
         </div>
       </div>
     </div>
