@@ -1,21 +1,22 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Shield, Upload, Verified, Lock, ArrowRight, CheckCircle } from 'lucide-react'
-import { LoadingButton } from '@/components/ui/LoadingSpinner'
+import { Shield, Upload, Verified, Lock, CheckCircle } from 'lucide-react'
+import { WalletButton } from './Web3/WalletButton'
+import { useWeb3Context } from './Web3/Web3Provider'
+import { useEffect } from 'react'
 
 export function LandingPage() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const { isAuthenticated } = useWeb3Context()
 
-  const handleGetStarted = async () => {
-    setIsLoading(true)
-    // Add a small delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 500))
-    router.push('/login')
-  }
+  // Redirect to dashboard when wallet is connected and authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, router])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
@@ -36,19 +37,14 @@ export function LandingPage() {
             <Link href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
               Pricing
             </Link>
-            <Link 
-              href="/login" 
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Sign In
-            </Link>
-            <LoadingButton
-              isLoading={isLoading}
-              onClick={handleGetStarted}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-            >
-              Get Started
-            </LoadingButton>
+            {/* Wallet connection in header */}
+            <div className="flex items-center">
+              <WalletButton 
+                size="md"
+                label="Connect Wallet"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+              />
+            </div>
           </nav>
         </div>
       </header>
@@ -66,14 +62,14 @@ export function LandingPage() {
             our advanced PDP verification system.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <LoadingButton
-              isLoading={isLoading}
-              onClick={handleGetStarted}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg font-medium text-lg transition-colors"
-            >
-              Start Storing Securely
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </LoadingButton>
+            {/* Main wallet connection */}
+            <div className="flex justify-center">
+              <WalletButton 
+                size="md"
+                label="Connect Wallet"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+              />
+            </div>
             <Link
               href="#how-it-works"
               className="border border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-4 rounded-lg font-medium text-lg transition-colors inline-flex items-center justify-center"
@@ -218,13 +214,14 @@ export function LandingPage() {
                 </li>
               </ul>
               
-              <LoadingButton
-                isLoading={isLoading}
-                onClick={handleGetStarted}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium text-lg transition-colors"
-              >
-                Get Started Now
-              </LoadingButton>
+              {/* Wallet connection in pricing section */}
+              <div className="flex justify-center">
+                <WalletButton 
+                  size="md"
+                  label="Connect Wallet"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                />
+              </div>
             </div>
           </div>
         </div>
