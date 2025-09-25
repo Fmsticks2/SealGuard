@@ -51,7 +51,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://relay.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org; object-src 'none'; base-uri 'self'; connect-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://relay.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org wss://relay.walletconnect.com wss://relay.walletconnect.org;"
+            value: "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://relay.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org; object-src 'none'; base-uri 'self'; connect-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://relay.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org https://api.node.glif.io https://api.calibration.node.glif.io https://eth-mainnet.g.alchemy.com https://eth-sepolia.g.alchemy.com https://polygon-mainnet.g.alchemy.com https://polygon-mumbai.g.alchemy.com wss://relay.walletconnect.com wss://relay.walletconnect.org;"
           },
         ],
       },
