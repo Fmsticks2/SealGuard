@@ -8,6 +8,7 @@ import { SiweMessage } from "siwe";
 import { mainnet, sepolia, polygon, localhost } from "@reown/appkit/networks";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import toast from "react-hot-toast";
+import { useAuthStore } from "../../store/authStore";
 
 /**
  * Configuration (update env / metadata as needed)
@@ -161,6 +162,9 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Auth store integration
+  const { setUser: setAuthUser, logout: authLogout } = useAuthStore();
+
   const isAuthenticated = !!(user?.isConnected && session);
   const isConnected = !!user?.isConnected;
 
@@ -173,7 +177,14 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       hasSession: !!session,
       sessionAddress: session?.address
     });
-  }, [isConnected, isAuthenticated, user?.address, session?.address]);
+    
+    // Sync with auth store
+    if (isAuthenticated && user) {
+      setAuthUser(user.address);
+    } else if (!isConnected) {
+      authLogout();
+    }
+  }, [isConnected, isAuthenticated, user?.address, session?.address, setAuthUser, authLogout]);
 
   // --- restore session from localStorage (client-only)
   useEffect(() => {
@@ -428,12 +439,18 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setSession(null);
       setProvider(null);
       setSigner(null);
+      
+      // Clear auth store
+      authLogout();
+      
       localStorage.removeItem("sealguard_session");
+      toast.success("Disconnected successfully");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       // eslint-disable-next-line no-console
       console.error("Failed to disconnect:", err);
       setError(message || "Failed to disconnect");
+      toast.error("Failed to disconnect");
     }
   };
 
