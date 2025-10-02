@@ -1,36 +1,16 @@
-'use client'
+import Link from "next/link";
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/store/authStore'
-import { LandingPage } from '@/components/LandingPage'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-
-export default function HomePage() {
-  const { user, isLoading } = useAuthStore()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!isLoading && user) {
-      router.push('/dashboard')
-    }
-  }, [user, isLoading, router])
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+export default function Home() {
+  return (
+    <section className="grid gap-6">
+      <div className="rounded-xl border p-6 bg-white/50">
+        <h1 className="text-2xl font-semibold">SealGuard</h1>
+        <p className="text-gray-600 mt-2">Connect your wallet and start verifying documents stored on Filecoin.</p>
+        <div className="mt-4 flex items-center gap-3">
+          <appkit-button>Connect Wallet</appkit-button>
+          <Link href="/dashboard" className="px-3 py-2 border rounded">Go to Dashboard</Link>
+        </div>
       </div>
-    )
-  }
-
-  if (user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
-  }
-
-  return <LandingPage />
+    </section>
+  );
 }
