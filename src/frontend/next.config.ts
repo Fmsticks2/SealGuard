@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: [
+    "@reown/appkit",
+    "@reown/appkit-adapter-wagmi",
+    "@reown/appkit/networks",
+  ],
+  experimental: {
+    esmExternals: "loose",
+  },
 };
 
 export default nextConfig;
