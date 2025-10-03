@@ -31,9 +31,11 @@ const wagmiAdapter = new WagmiAdapter({
   projectId,
   ssr: true,
   customRpcUrls: {
-    "eip155:314159": "https://api.calibration.node.glif.io/rpc/v1", // Calibration RPC <mcreference link="https://docs.filecoin.io/networks/calibration/rpcs" index="1">1</mcreference> <mcreference link="https://github.com/filecoin-project/testnet-calibration" index="3">3</mcreference>
+    "eip155:314159": [
+      process.env.NEXT_PUBLIC_FILECOIN_CALIBRATION_RPC || "https://api.calibration.node.glif.io/rpc/v1",
+    ],
   },
-}); // Adapter configuration <mcreference link="https://reown.com/blog/how-to-get-started-with-reown-appkit-on-any-evm-chain" index="2">2</mcreference>
+});
 
 // Export wagmi config for use in contract reads/writes
 export const wagmiConfig = wagmiAdapter.wagmiConfig;
