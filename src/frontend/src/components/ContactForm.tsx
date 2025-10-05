@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -8,7 +6,6 @@ import { z } from "zod";
 import { 
   Mail, 
   Phone, 
-  MapPin, 
   Send, 
   CheckCircle, 
   AlertCircle, 
@@ -30,12 +27,6 @@ const contactSchema = z.object({
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 30 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, ease: "easeOut" }
-};
 
 export default function ContactForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);

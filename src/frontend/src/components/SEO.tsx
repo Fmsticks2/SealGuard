@@ -1,6 +1,4 @@
-'use client';
-
-import Head from 'next/head';
+import { Helmet } from 'react-helmet-async';
 
 interface SEOProps {
   title?: string;
@@ -18,7 +16,7 @@ export default function SEO({
   canonicalUrl = "https://sealguard.com"
 }: SEOProps) {
   return (
-    <Head>
+    <Helmet>
       {/* Primary Meta Tags */}
       <title>{title}</title>
       <meta name="title" content={title} />
@@ -76,6 +74,6 @@ export default function SEO({
           })
         }}
       />
-    </Head>
+    </Helmet>
   );
 }
