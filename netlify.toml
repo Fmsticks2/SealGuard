@@ -1,6 +1,6 @@
 [build]
   # Build command
-  command = "cd src/frontend && npm run build"
+  command = "cd src/frontend && npm install && npm run build"
   
   # Directory to publish (relative to repo root)
   publish = "src/frontend/dist"

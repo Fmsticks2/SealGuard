@@ -7,9 +7,9 @@ VITE_REOWN_PROJECT_ID=e9b8bea6c20127785f5864276a38fa3d
 # Filecoin RPC (Optional - has fallback to https://api.calibration.node.glif.io/rpc/v1)
 VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
 
-# Web3.Storage Token (Optional - for IPFS uploads via Web3.Storage)
-# Get from https://web3.storage/
-VITE_WEB3_STORAGE_TOKEN=your_web3_storage_token_here
+# Storacha (Web3.Storage) DID Key - for IPFS uploads
+# Get from https://console.storacha.network/
+VITE_WEB3_STORAGE_TOKEN=did:key:z6MksXW24FNBHNKU8CPXu4B6HSL9bmyRMrJpejznmXcWN1Pr
 
 # IMPORTANT NOTES:
 # 1. Replace "your_reown_project_id_here" with your actual Reown Project ID from https://cloud.reown.com/
