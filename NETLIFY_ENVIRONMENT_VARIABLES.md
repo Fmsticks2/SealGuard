@@ -15,8 +15,8 @@ VITE_REOWN_PROJECT_ID=e9b8bea6c20127785f5864276a38fa3d
 # REQUIRED - Filecoin Network RPC
 VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
 
-# REQUIRED - IPFS Storage Token
-VITE_WEB3_STORAGE_TOKEN=did:key:z6MksXW24FNBHNKU8CPXu4B6HSL9bmyRMrJpejznmXcWN1Pr
+# OPTIONAL - Pinata IPFS Storage (Enhanced Security)
+VITE_PINATA_SECRET_KEY=your_pinata_secret_key_here
 ```
 
 ## Detailed Environment Variables Reference
@@ -57,19 +57,22 @@ VITE_FILECOIN_CALIBRATION_RPC=https://filecoin-calibration.chainup.net/rpc/v1
 
 ### 📁 Storage & IPFS Configuration
 
-#### `VITE_WEB3_STORAGE_TOKEN` (Required)
-- **Purpose**: Authentication token for Storacha (Web3.Storage) IPFS uploads
-- **Source**: [Storacha Console](https://console.storacha.network/)
-- **Format**: DID key format (`did:key:z...`)
-- **Example**: `did:key:z6MksXW24FNBHNKU8CPXu4B6HSL9bmyRMrJpejznmXcWN1Pr`
-- **Security**: Public but rate-limited (exposed to client-side)
+#### `VITE_PINATA_SECRET_KEY` (Optional)
+- **Purpose**: Enhanced security for Pinata IPFS uploads (optional secret key)
+- **Source**: [Pinata Dashboard](https://app.pinata.cloud/)
+- **Format**: Alphanumeric string
+- **Example**: `your_pinata_secret_key_here`
+- **Security**: Private (should be kept secure)
 
 **Setup Instructions:**
-1. Visit [console.storacha.network](https://console.storacha.network/)
+1. Visit [app.pinata.cloud](https://app.pinata.cloud/)
 2. Create account and verify email
-3. Generate a new API token
-4. Copy the DID key format token
-5. Add to Netlify environment variables
+3. Navigate to API Keys section
+4. Generate a new API key pair (API Key + Secret Key)
+5. The API key is hardcoded in the application (`e79c339836de83941cd6`)
+6. Optionally add the secret key to Netlify environment variables for enhanced security
+
+**Note**: The Pinata API key is currently hardcoded in the application for demo purposes. In production, you may want to move this to an environment variable as well.
 
 ### 🏗️ Smart Contract Addresses (Hardcoded)
 
@@ -89,7 +92,7 @@ SealGuardMultiSig: 0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8
 # Local development (.env.local)
 VITE_REOWN_PROJECT_ID=your_dev_project_id
 VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
-VITE_WEB3_STORAGE_TOKEN=your_dev_storage_token
+VITE_PINATA_SECRET_KEY=your_dev_pinata_secret_key
 ```
 
 ### Staging Environment
@@ -97,7 +100,7 @@ VITE_WEB3_STORAGE_TOKEN=your_dev_storage_token
 # Staging deployment
 VITE_REOWN_PROJECT_ID=your_staging_project_id
 VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
-VITE_WEB3_STORAGE_TOKEN=your_staging_storage_token
+VITE_PINATA_SECRET_KEY=your_staging_pinata_secret_key
 ```
 
 ### Production Environment
@@ -105,7 +108,7 @@ VITE_WEB3_STORAGE_TOKEN=your_staging_storage_token
 # Production deployment
 VITE_REOWN_PROJECT_ID=your_production_project_id
 VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
-VITE_WEB3_STORAGE_TOKEN=your_production_storage_token
+VITE_PINATA_SECRET_KEY=your_production_pinata_secret_key
 ```
 
 ## Netlify Deployment Setup

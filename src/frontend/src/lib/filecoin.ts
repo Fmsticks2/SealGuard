@@ -1,28 +1,14 @@
-// Filecoin/IPFS upload utilities
-// import { create } from 'ipfs-http-client';
+// Filecoin/IPFS upload utilities using Pinata
+import { PinataSDK } from "pinata";
 
 // IPFS client configuration
 const IPFS_GATEWAY_URL = 'https://ipfs.io/ipfs/';
-// const IPFS_API_URL = 'https://api.web3.storage'; // You can use Web3.Storage or other IPFS providers
 
-// Initialize IPFS client (you'll need to configure this with your preferred IPFS provider)
-let ipfsClient: any = null;
-
-try {
-  // For development, we'll use a public IPFS gateway
-  // In production, you should use a dedicated IPFS service like Web3.Storage, Pinata, or Lighthouse
-  // ipfsClient = create({
-  //   host: 'ipfs.infura.io',
-  //   port: 5001,
-  //   protocol: 'https',
-  //   headers: {
-  //     // Add your Infura project credentials here
-  //     authorization: 'Basic ' + btoa('your-project-id:your-project-secret'),
-  //   },
-  // });
-} catch (error) {
-  console.warn('IPFS client initialization failed, using fallback method');
-}
+// Initialize Pinata client
+const PINATA_JWT = 'e79c339836de83941cd6';
+const pinata = new PinataSDK({
+  pinataJwt: PINATA_JWT,
+});
 
 export interface UploadResult {
   cid: string;
@@ -31,29 +17,25 @@ export interface UploadResult {
 }
 
 /**
- * Upload a file to IPFS/Filecoin network
+ * Upload a file to IPFS/Filecoin network using Pinata
  * @param file The file to upload
- * @returns Promise with upload result containing CID and URL
+ * @returns Promise with upload result containing CID
  */
 export async function uploadToFilecoin(file: File): Promise<string> {
   try {
-    // Method 1: Try using IPFS client if available
-    if (ipfsClient) {
-      const result = await ipfsClient.add(file, {
-        progress: (prog: number) => console.log(`Upload progress: ${prog}`),
-        pin: true, // Pin the file to ensure it stays available
-      });
-      
-      return result.cid.toString();
-    }
-
-    // Method 2: Fallback to Web3.Storage API (requires API key)
-    return await uploadViaWeb3Storage(file);
+    console.log('Starting Pinata upload for file:', file.name);
+    
+    // Upload file to Pinata IPFS using the correct API structure
+    const uploadBuilder = pinata.upload.public.file(file);
+    const upload = await uploadBuilder;
+    
+    console.log('Pinata upload successful, CID:', upload.cid);
+    return upload.cid;
 
   } catch (error) {
-    console.error('Filecoin upload failed:', error);
+    console.error('Pinata upload failed:', error);
     
-    // Method 3: Final fallback - simulate upload for development
+    // Method 2: Final fallback - simulate upload for development
     if (import.meta.env.DEV) {
       console.warn('Using simulated upload for development');
       return await simulateUpload(file);
@@ -61,62 +43,11 @@ export async function uploadToFilecoin(file: File): Promise<string> {
 
     // Propagate detailed error message when available
     if (error instanceof Error) {
-      throw new Error(`Failed to upload file to Filecoin network: ${error.message}`);
+      throw new Error(`Failed to upload file to Pinata IPFS: ${error.message}`);
     }
     
-    throw new Error('Failed to upload file to Filecoin network');
+    throw new Error('Failed to upload file to Pinata IPFS');
   }
-}
-
-/**
- * Upload file using Web3.Storage API
- */
-async function uploadViaWeb3Storage(file: File): Promise<string> {
-  const WEB3_STORAGE_TOKEN = import.meta.env.VITE_WEB3_STORAGE_TOKEN;
-  
-  if (!WEB3_STORAGE_TOKEN) {
-    throw new Error('Web3.Storage token not configured');
-  }
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  let response: Response;
-  try {
-    response = await fetch('https://api.web3.storage/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${WEB3_STORAGE_TOKEN}`,
-      },
-      body: formData,
-    });
-  } catch (networkError) {
-    const msg = networkError instanceof Error ? networkError.message : String(networkError);
-    throw new Error(`Web3.Storage upload request failed: ${msg}`);
-  }
-
-  if (!response.ok) {
-    let errorDetail = '';
-    try {
-      // Try to parse JSON; fallback to text
-      const text = await response.text();
-      errorDetail = text || '';
-    } catch {}
-
-    let hint = '';
-    if (response.status === 401 || response.status === 403) {
-      hint = 'Check VITE_WEB3_STORAGE_TOKEN is set and valid in your production environment.';
-    } else if (response.status === 410 || response.status === 404) {
-      hint = 'The legacy Web3.Storage upload API endpoint is sunset. Migrate to @web3-storage/w3up-client.';
-    } else if (response.status >= 500) {
-      hint = 'Web3.Storage service error. Please retry later.';
-    }
-
-    throw new Error(`Web3.Storage upload failed (${response.status} ${response.statusText})${errorDetail ? `: ${errorDetail}` : ''}${hint ? ` - ${hint}` : ''}`);
-  }
-
-  const result = await response.json();
-  return result.cid;
 }
 
 /**
@@ -126,14 +57,11 @@ async function simulateUpload(file: File): Promise<string> {
   // Simulate upload delay
   await new Promise(resolve => setTimeout(resolve, 2000));
   
-  // Generate a mock CID based on file content
-  const fileContent = await file.arrayBuffer();
-  const hash = await crypto.subtle.digest('SHA-256', fileContent);
-  const hashArray = Array.from(new Uint8Array(hash));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  // Generate a realistic mock CID
+  const mockCid = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
   
-  // Create a mock IPFS CID format
-  return `bafybei${hashHex.substring(0, 52)}`;
+  console.log(`Simulated upload complete for ${file.name}, mock CID: ${mockCid}`);
+  return mockCid;
 }
 
 /**
@@ -179,15 +107,6 @@ export async function verifyFileIntegrity(file: File, expectedHash: string): Pro
  */
 export async function getFileMetadata(cid: string): Promise<any> {
   try {
-    if (ipfsClient) {
-      const stats = await ipfsClient.files.stat(`/ipfs/${cid}`);
-      return {
-        size: stats.size,
-        type: stats.type,
-        cid: cid,
-      };
-    }
-    
     // Fallback: try to get basic info from HTTP head request
     const url = getIPFSUrl(cid);
     const response = await fetch(url, { method: 'HEAD' });

@@ -65,10 +65,10 @@ export function mapErrorToFriendlyMessage(error: string | Error): FriendlyError 
   }
 
   // Filecoin/IPFS Upload Errors
-  if (lowerError.includes('failed to upload to filecoin') || lowerError.includes('ipfs')) {
+  if (lowerError.includes('failed to upload to pinata') || lowerError.includes('pinata') || lowerError.includes('ipfs')) {
     return {
       title: 'Storage Network Issue',
-      message: 'Unable to store your file on the decentralized network.',
+      message: 'There was a problem uploading your file to the IPFS network via Pinata.',
       action: 'This is usually temporary. Please try uploading again in a few minutes.',
       severity: 'error'
     };
