@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useDocuments } from '../hooks/useDocuments';
+import { mapErrorToFriendlyMessage, getErrorIcon, getErrorColors, FriendlyError } from '../utils/errorMessages';
 
 interface DocumentUploadProps {
   onUploadComplete?: (documentId: number) => void;
@@ -34,17 +35,16 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
   const [documentType, setDocumentType] = useState('other');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
+  const [friendlyError, setFriendlyError] = useState<FriendlyError | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
-      return 'File size must be less than 100MB';
+      return `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
     }
-    
     if (!ALLOWED_TYPES.includes(file.type)) {
       return 'File type not supported. Please upload PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, or TXT files.';
     }
-    
     return null;
   };
 
@@ -82,23 +82,31 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
       const validationError = validateFile(file);
       
       if (validationError) {
-        alert(validationError);
+        const friendlyErrorMsg = mapErrorToFriendlyMessage(validationError);
+        setFriendlyError(friendlyErrorMsg);
         return;
       }
       
       setSelectedFile(file);
+      setFriendlyError(null);
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      const friendlyErrorMsg = mapErrorToFriendlyMessage('No file selected');
+      setFriendlyError(friendlyErrorMsg);
+      return;
+    }
 
     if (!documentType) {
-      alert('Please select a document type');
+      const friendlyErrorMsg = mapErrorToFriendlyMessage('Document type is required');
+      setFriendlyError(friendlyErrorMsg);
       return;
     }
 
     try {
+      setFriendlyError(null);
       const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
       await uploadDocument(selectedFile, documentType, description, tagArray);
       
@@ -116,7 +124,8 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
       }
     } catch (err) {
       console.error('Upload failed:', err);
-      alert(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      const friendlyErrorMsg = mapErrorToFriendlyMessage(err as Error);
+      setFriendlyError(friendlyErrorMsg);
     }
   };
 
@@ -164,8 +173,51 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
           </div>
         )}
 
-        {/* Error Display */}
-        {error && (
+        {/* Friendly Error Display */}
+        {friendlyError && (
+          <div className={`mb-6 p-4 rounded-lg border ${getErrorColors(friendlyError.severity).bg} ${getErrorColors(friendlyError.severity).border}`}>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg 
+                  className={`h-5 w-5 ${getErrorColors(friendlyError.severity).icon}`} 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={getErrorIcon(friendlyError.severity)} />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className={`text-sm font-medium ${getErrorColors(friendlyError.severity).text}`}>
+                  {friendlyError.title}
+                </h3>
+                <p className={`mt-1 text-sm ${getErrorColors(friendlyError.severity).text}`}>
+                  {friendlyError.message}
+                </p>
+                {friendlyError.action && (
+                  <p className={`mt-2 text-sm font-medium ${getErrorColors(friendlyError.severity).text}`}>
+                    {friendlyError.action}
+                  </p>
+                )}
+              </div>
+              <div className="ml-auto pl-3">
+                <button
+                  type="button"
+                  className={`inline-flex rounded-md p-1.5 ${getErrorColors(friendlyError.severity).icon} hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-offset-2`}
+                  onClick={() => setFriendlyError(null)}
+                >
+                  <span className="sr-only">Dismiss</span>
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Legacy Error Display - Remove after testing */}
+        {error && !friendlyError && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center">
               <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
