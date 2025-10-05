@@ -8,6 +8,7 @@
   # Node.js version
   [build.environment]
     NODE_VERSION = "18"
+    NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 # Disable automatic framework detection and processing
 [build.processing]
