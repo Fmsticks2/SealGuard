@@ -4,6 +4,7 @@ import { mapErrorToFriendlyMessage, getErrorIcon, getErrorColors, FriendlyError 
 
 interface DocumentUploadProps {
   onUploadComplete?: (documentId: number) => void;
+  onClose?: () => void;
   className?: string;
 }
 
@@ -28,7 +29,7 @@ const ALLOWED_TYPES = [
   'text/plain',
 ];
 
-export default function DocumentUpload({ onUploadComplete, className = '' }: DocumentUploadProps) {
+export default function DocumentUpload({ onUploadComplete, onClose, className = '' }: DocumentUploadProps) {
   const { uploadDocument, uploadProgress, error, loading } = useDocuments();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -148,10 +149,23 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
     <div className={`bg-white rounded-xl shadow-lg p-8 ${className}`}>
       <div className="space-y-6">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                title="Close upload form"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
           <h3 className="text-lg font-medium text-black mb-2">Upload New Document</h3>
           <p className="text-black mb-6">Securely store and verify your documents on the blockchain</p>
@@ -293,7 +307,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
               <select
                 value={documentType}
                 onChange={(e) => setDocumentType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
               >
                 {DOCUMENT_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -312,7 +326,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Brief description of the document..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
               />
             </div>
 
@@ -325,7 +339,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="Enter tags separated by commas (e.g., important, confidential, 2024)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
               />
               <p className="text-xs text-black mt-1">Separate multiple tags with commas</p>
             </div>

@@ -482,7 +482,10 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-6">
-              <DocumentUpload onUploadComplete={handleUploadSuccess} />
+              <DocumentUpload 
+                onUploadComplete={handleUploadSuccess} 
+                onClose={() => setShowUploadModal(false)}
+              />
             </div>
           </div>
         </div>
