@@ -70,11 +70,17 @@ export default function Dashboard() {
 
   const handleUploadSuccess = () => {
     setShowUploadModal(false);
-    // Refresh data after successful upload
+    // Refresh data after successful upload with multiple attempts
     setTimeout(() => {
       refetchUserDocs();
       fetchUserDocuments();
-    }, 2000);
+    }, 1000);
+    
+    // Additional refresh after longer delay to ensure blockchain updates
+    setTimeout(() => {
+      refetchUserDocs();
+      fetchUserDocuments();
+    }, 5000);
   };
 
   const handleVerificationClick = (document: Document) => {
@@ -134,7 +140,7 @@ export default function Dashboard() {
       total: documents?.length || 0,
       verified: documents?.filter(doc => doc.isVerified).length || 0,
       pending: documents?.filter(doc => !doc.isVerified && doc.lifecycle === 0).length || 0,
-      rejected: documents?.filter(doc => doc.lifecycle === 1 || doc.lifecycle === 2).length || 0,
+      rejected: documents?.filter(doc => doc.lifecycle === 1 || doc.lifecycle === 2 || doc.lifecycle === 3).length || 0,
     };
 
   // Don't show wallet connection UI since ProtectedRoute handles it

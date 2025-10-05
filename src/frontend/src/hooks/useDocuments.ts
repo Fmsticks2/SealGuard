@@ -301,6 +301,11 @@ export function useDocuments() {
 
       // Refresh document list
       await refetchDocumentIds();
+      
+      // Force a refresh of the documents after a short delay to allow blockchain to update
+      setTimeout(async () => {
+        await refetchDocumentIds();
+      }, 3000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setError(errorMessage);
