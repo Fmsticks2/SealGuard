@@ -9,7 +9,7 @@
   [build.environment]
     NODE_VERSION = "18"
 
-# Disable Next.js plugin detection
+# Disable automatic framework detection and processing
 [build.processing]
   skip_processing = true
 
