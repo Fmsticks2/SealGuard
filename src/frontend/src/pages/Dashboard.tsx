@@ -143,7 +143,7 @@ export default function Dashboard() {
     } else if (statusFilter === 'pending') {
       matchesStatus = !doc.isVerified && doc.lifecycle === 0; // active
     } else if (statusFilter === 'rejected') {
-      matchesStatus = doc.lifecycle === 2 || doc.lifecycle === 3; // expired or revoked
+      matchesStatus = doc.lifecycle === 3; // Only REJECTED lifecycle
     }
     
     return matchesSearch && matchesStatus;
@@ -154,7 +154,7 @@ export default function Dashboard() {
       total: documents?.length || 0,
       verified: documents?.filter(doc => doc.isVerified).length || 0,
       pending: documents?.filter(doc => !doc.isVerified && doc.lifecycle === 0).length || 0,
-      rejected: documents?.filter(doc => doc.lifecycle === 1 || doc.lifecycle === 2 || doc.lifecycle === 3).length || 0,
+      rejected: documents?.filter(doc => doc.lifecycle === 3).length || 0, // Only REJECTED lifecycle
     };
 
   // Don't show wallet connection UI since ProtectedRoute handles it
@@ -464,7 +464,7 @@ export default function Dashboard() {
                   let status = 'pending';
                   if (doc.isVerified) {
                     status = 'verified';
-                  } else if (doc.lifecycle === 2 || doc.lifecycle === 3) {
+                  } else if (doc.lifecycle === 3) {
                     status = 'rejected';
                   }
                   
