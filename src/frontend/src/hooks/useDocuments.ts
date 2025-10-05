@@ -69,6 +69,7 @@ export function useDocuments() {
     const fetchDocuments = async () => {
       if (!userDocumentIds || !Array.isArray(userDocumentIds) || userDocumentIds.length === 0) {
         setFetchedDocuments([]);
+        setLoading(false);
         return;
       }
 
@@ -312,6 +313,8 @@ export function useDocuments() {
   // Function to manually refresh documents
   const refetchDocuments = async () => {
     if (!userDocumentIds || (userDocumentIds as bigint[]).length === 0 || !address) {
+      setFetchedDocuments([]);
+      setLoading(false);
       return;
     }
 
