@@ -1,5 +1,5 @@
 [build]
-  # Build command
+  # Build command for Vite project
   command = "cd src/frontend && pnpm install && pnpm run build"
   
   # Directory to publish (relative to repo root)
@@ -9,7 +9,11 @@
   [build.environment]
     NODE_VERSION = "18"
 
-# Redirect rules for SPA
+# Disable Next.js plugin detection
+[build.processing]
+  skip_processing = false
+
+# Redirect rules for SPA (Single Page Application)
 [[redirects]]
   from = "/*"
   to = "/index.html"
