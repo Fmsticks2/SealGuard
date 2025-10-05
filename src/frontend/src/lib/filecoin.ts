@@ -4,8 +4,13 @@ import { PinataSDK } from "pinata";
 // IPFS client configuration
 const IPFS_GATEWAY_URL = 'https://ipfs.io/ipfs/';
 
-// Initialize Pinata client
-const PINATA_JWT = 'e79c339836de83941cd6';
+// Initialize Pinata client with environment variable
+const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
+
+if (!PINATA_JWT) {
+  console.error('VITE_PINATA_JWT environment variable is not set');
+}
+
 const pinata = new PinataSDK({
   pinataJwt: PINATA_JWT,
 });
@@ -23,6 +28,11 @@ export interface UploadResult {
  */
 export async function uploadToFilecoin(file: File): Promise<string> {
   try {
+    // Check if Pinata JWT is configured
+    if (!PINATA_JWT) {
+      throw new Error('Pinata JWT is not configured. Please set VITE_PINATA_JWT environment variable.');
+    }
+
     console.log('Starting Pinata upload for file:', file.name);
     
     // Upload file to Pinata IPFS using the correct API structure
@@ -34,6 +44,27 @@ export async function uploadToFilecoin(file: File): Promise<string> {
 
   } catch (error) {
     console.error('Pinata upload failed:', error);
+    
+    // Enhanced error handling for network issues
+    if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase();
+      
+      // Check for network-related errors
+      if (errorMessage.includes('fetch') || 
+          errorMessage.includes('network') || 
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('connection')) {
+        throw new Error('Network connection issue. Please check your internet connection and try again.');
+      }
+      
+      // Check for authentication errors
+      if (errorMessage.includes('unauthorized') || 
+          errorMessage.includes('forbidden') ||
+          errorMessage.includes('invalid') ||
+          errorMessage.includes('jwt')) {
+        throw new Error('Authentication failed. Please check your Pinata API credentials.');
+      }
+    }
     
     // Method 2: Final fallback - simulate upload for development
     if (import.meta.env.DEV) {
