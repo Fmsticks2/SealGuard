@@ -86,7 +86,7 @@ export default function Dashboard() {
     // Refresh data after verification
     setTimeout(() => {
       refetchUserDocs();
-      fetchUserDocuments();
+      refetchDocuments(); // This will fetch fresh document data from the contract
     }, 2000);
   };
 
@@ -312,6 +312,25 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Verification Help Banner */}
+        {stats.pending > 0 && (
+          <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-blue-900">
+                  You have {stats.pending} pending document{stats.pending > 1 ? 's' : ''} awaiting verification
+                </h3>
+                <p className="mt-1 text-sm text-blue-700">
+                  To verify a document: Click the ⚙️ settings icon next to any pending document, then submit verification proof (text or file upload) to confirm authenticity.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Loading State */}
         {(isLoadingDocuments || isLoadingUserDocs) && (
           <div className="p-8 text-center">
@@ -418,18 +437,25 @@ export default function Dashboard() {
                         <span className="text-sm text-gray-900">{doc.documentType}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          status === 'verified' 
-                            ? 'bg-green-100 text-green-800'
-                            : status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {status === 'verified' && <CheckCircle className="h-3 w-3 mr-1" />}
-                          {status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                          {status === 'rejected' && <AlertTriangle className="h-3 w-3 mr-1" />}
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </span>
+                        <div className="flex items-center">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            status === 'verified' 
+                              ? 'bg-green-100 text-green-800'
+                              : status === 'pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {status === 'verified' && <CheckCircle className="h-3 w-3 mr-1" />}
+                            {status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                            {status === 'rejected' && <AlertTriangle className="h-3 w-3 mr-1" />}
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </span>
+                          {status === 'pending' && (
+                            <div className="ml-2 text-xs text-gray-500">
+                              <span className="italic">Click ⚙️ to verify</span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(doc.timestamp * 1000).toLocaleDateString()}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useReadContract, useWriteContract } from 'wagmi';
+import { readContract } from '@wagmi/core';
+import { wagmiConfig } from '../lib/wagmi';
 import { keccak256 } from 'viem';
 import { CONTRACT_ADDRESSES, SealGuardRegistryABI, FILECOIN_CALIBRATION_CHAIN_ID, DocumentTuple } from '../lib/contracts';
 import { uploadToFilecoin } from '../lib/filecoin';
@@ -77,38 +79,63 @@ export function useDocuments() {
         const documents: Document[] = [];
         
         // Fetch each document individually from the contract
-        for (const docId of userDocumentIds) {
+        for (const docId of userDocumentIds as bigint[]) {
           try {
             // Convert bigint to number for the contract call
             const documentId = typeof docId === 'bigint' ? docId : BigInt(docId);
             
-            // Create a document with proper verification status
-            // New documents start as unverified until a verification proof is submitted
-            const document: Document = {
-              id: Number(documentId),
-              filecoinCID: `document-cid-${documentId}`,
-              fileHash: `hash-${documentId}`,
-              proofHash: '',
-              owner: address || '',
-              timestamp: Date.now() - (Number(documentId) * 60000), // Simulate different timestamps
-              lastVerified: 0,
-              // Documents are unverified by default until verification proof is submitted
-              // This matches the smart contract behavior where isVerified starts as false
-              isVerified: false,
-              metadata: JSON.stringify({ 
-                name: `Document ${documentId}`, 
-                type: 'document',
-                uploadedAt: new Date(Date.now() - (Number(documentId) * 60000)).toISOString()
-              }),
-              fileSize: 1024 * (Number(documentId) + 1),
-              documentType: 'document',
-              lifecycle: 0, // 0 = active
-              expiresAt: 0
-            };
-            
-            documents.push(document);
+            // Use the contract read to get actual document data
+            const contractDoc = await readContract(wagmiConfig, {
+              address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
+              abi: SealGuardRegistryABI,
+              functionName: 'getDocument',
+              args: [documentId],
+              chainId: FILECOIN_CALIBRATION_CHAIN_ID,
+            }) as DocumentTuple;
+
+            if (contractDoc) {
+              // Convert contract data to our Document interface
+              const document: Document = {
+                id: Number(contractDoc.id),
+                filecoinCID: contractDoc.filecoinCID,
+                fileHash: contractDoc.fileHash,
+                proofHash: contractDoc.proofHash,
+                owner: contractDoc.owner,
+                timestamp: Number(contractDoc.timestamp),
+                lastVerified: Number(contractDoc.lastVerified),
+                isVerified: contractDoc.isVerified, // This will be the actual verification status
+                metadata: contractDoc.metadata,
+                fileSize: Number(contractDoc.fileSize),
+                documentType: contractDoc.documentType,
+                lifecycle: Number(contractDoc.lifecycle),
+                expiresAt: Number(contractDoc.expiresAt)
+              };
+              
+              documents.push(document);
+            }
           } catch (docError) {
             console.error(`Error fetching document ${docId}:`, docError);
+            // Create fallback document if contract read fails
+            const document: Document = {
+              id: Number(docId),
+              filecoinCID: `document-cid-${docId}`,
+              fileHash: `hash-${docId}`,
+              proofHash: '',
+              owner: address || '',
+              timestamp: Date.now() - (Number(docId) * 60000),
+              lastVerified: 0,
+              isVerified: false,
+              metadata: JSON.stringify({ 
+                name: `Document ${docId}`, 
+                type: 'document',
+                uploadedAt: new Date(Date.now() - (Number(docId) * 60000)).toISOString()
+              }),
+              fileSize: 1024 * (Number(docId) + 1),
+              documentType: 'document',
+              lifecycle: 0,
+              expiresAt: 0
+            };
+            documents.push(document);
           }
         }
         
@@ -282,6 +309,88 @@ export function useDocuments() {
     }
   };
 
+  // Function to manually refresh documents
+  const refetchDocuments = async () => {
+    if (!userDocumentIds || (userDocumentIds as bigint[]).length === 0 || !address) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const documents: Document[] = [];
+      
+      // Fetch each document individually from the contract
+      for (const docId of userDocumentIds as bigint[]) {
+        try {
+          // Convert bigint to number for the contract call
+          const documentId = typeof docId === 'bigint' ? docId : BigInt(docId);
+          
+          // Use the contract read to get actual document data
+          const contractDoc = await readContract(wagmiConfig, {
+            address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
+            abi: SealGuardRegistryABI,
+            functionName: 'getDocument',
+            args: [documentId],
+            chainId: FILECOIN_CALIBRATION_CHAIN_ID,
+          }) as DocumentTuple;
+
+          if (contractDoc) {
+            // Convert contract data to our Document interface
+            const document: Document = {
+              id: Number(contractDoc.id),
+              filecoinCID: contractDoc.filecoinCID,
+              fileHash: contractDoc.fileHash,
+              proofHash: contractDoc.proofHash,
+              owner: contractDoc.owner,
+              timestamp: Number(contractDoc.timestamp),
+              lastVerified: Number(contractDoc.lastVerified),
+              isVerified: contractDoc.isVerified, // This will be the actual verification status
+              metadata: contractDoc.metadata,
+              fileSize: Number(contractDoc.fileSize),
+              documentType: contractDoc.documentType,
+              lifecycle: Number(contractDoc.lifecycle),
+              expiresAt: Number(contractDoc.expiresAt)
+            };
+            
+            documents.push(document);
+          }
+        } catch (docError) {
+          console.error(`Error fetching document ${docId}:`, docError);
+          // Create fallback document if contract read fails
+          const document: Document = {
+            id: Number(docId),
+            filecoinCID: `document-cid-${docId}`,
+            fileHash: `hash-${docId}`,
+            proofHash: '',
+            owner: address || '',
+            timestamp: Date.now() - (Number(docId) * 60000),
+            lastVerified: 0,
+            isVerified: false,
+            metadata: JSON.stringify({ 
+              name: `Document ${docId}`, 
+              type: 'document',
+              uploadedAt: new Date(Date.now() - (Number(docId) * 60000)).toISOString()
+            }),
+            fileSize: 1024 * (Number(docId) + 1),
+            documentType: 'document',
+            lifecycle: 0,
+            expiresAt: 0
+          };
+          documents.push(document);
+        }
+      }
+      
+      setFetchedDocuments(documents);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch documents');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     documents: fetchedDocuments,
     loading,
@@ -291,7 +400,7 @@ export function useDocuments() {
     uploadDocument,
     submitVerificationProof,
     useDocumentData,
-    refetchDocuments: refetchDocumentIds,
+    refetchDocuments,
   };
 }
 
