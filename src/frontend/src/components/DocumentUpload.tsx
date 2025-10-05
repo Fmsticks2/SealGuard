@@ -30,7 +30,7 @@ const ALLOWED_TYPES = [
 ];
 
 export default function DocumentUpload({ onUploadComplete, onClose, className = '' }: DocumentUploadProps) {
-  const { uploadDocument, uploadProgress, error, loading } = useDocuments();
+  const { uploadDocument, error, loading } = useDocuments();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('other');
@@ -109,7 +109,15 @@ export default function DocumentUpload({ onUploadComplete, onClose, className = 
     try {
       setFriendlyError(null);
       const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-      await uploadDocument(selectedFile, documentType, description, tagArray);
+      
+      const metadata = {
+        name: selectedFile.name,
+        documentType,
+        description,
+        tags: tagArray
+      };
+      
+      await uploadDocument(selectedFile, metadata);
       
       // Reset form
       setSelectedFile(null);
@@ -171,18 +179,12 @@ export default function DocumentUpload({ onUploadComplete, onClose, className = 
           <p className="text-black mb-6">Securely store and verify your documents on the blockchain</p>
         </div>
 
-        {/* Upload Progress */}
-        {uploadProgress && (
+        {/* Loading indicator */}
+        {loading && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-blue-900">{uploadProgress.message}</span>
-              <span className="text-sm text-blue-600">{uploadProgress.progress}%</span>
-            </div>
-            <div className="w-full bg-blue-200 rounded-full h-2">
-              <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress.progress}%` }}
-              ></div>
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+              <span className="text-sm font-medium text-blue-900">Uploading document...</span>
             </div>
           </div>
         )}

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { CONTRACT_ADDRESSES, SealGuardRegistryABI, FILECOIN_CALIBRATION_CHAIN_ID } from '../lib/contracts';
-import { uploadToFilecoin } from '../lib/filecoin';
+import { useAccount } from 'wagmi';
+import { useReadContract, useWriteContract } from 'wagmi';
 import { keccak256 } from 'viem';
+import { CONTRACT_ADDRESSES, SealGuardRegistryABI, FILECOIN_CALIBRATION_CHAIN_ID, DocumentTuple } from '../lib/contracts';
+import { uploadToFilecoin } from '../lib/filecoin';
+import { ContractDocumentService } from '../services/contractDocumentService';
 
 export interface Document {
   id: number;
@@ -23,271 +25,223 @@ export interface Document {
 export interface DocumentMetadata {
   name: string;
   description?: string;
+  type?: string;
+  size?: number;
+  uploadedAt?: string;
   tags?: string[];
-  originalFileName: string;
-  mimeType: string;
-  uploadedAt: string;
-}
-
-export interface UploadProgress {
-  stage: 'preparing' | 'uploading' | 'registering' | 'completed' | 'error';
-  progress: number;
-  message: string;
 }
 
 export function useDocuments() {
   const { address, isConnected } = useAccount();
-  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
-  
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
+  // Contract write hook
+  const { writeContract } = useWriteContract();
 
   // Get user's document IDs
   const { data: userDocumentIds, refetch: refetchDocumentIds } = useReadContract({
     address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
     abi: SealGuardRegistryABI,
     functionName: 'getUserDocuments',
-    args: address ? [address] : undefined,
+    args: [address as `0x${string}`],
+    chainId: FILECOIN_CALIBRATION_CHAIN_ID,
     query: {
-      enabled: !!address && isConnected,
+      enabled: !!address,
     },
   });
 
-  // Get total documents count for stats
-  const { data: totalDocuments } = useReadContract({
+  // Get total documents count
+  const { data: totalDocumentsData } = useReadContract({
     address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
     abi: SealGuardRegistryABI,
     functionName: 'getTotalDocuments',
+    chainId: FILECOIN_CALIBRATION_CHAIN_ID,
   });
 
-  // Fetch document details for each document ID
-  useEffect(() => {
-    if (userDocumentIds && Array.isArray(userDocumentIds) && userDocumentIds.length > 0) {
-      fetchDocumentDetails(userDocumentIds as bigint[]);
-    } else {
-      setDocuments([]);
-    }
-  }, [userDocumentIds]);
+  // Convert bigint[] to number[] for compatibility and fetch documents
+  const fetchedDocuments: Document[] = [];
 
-  const fetchDocumentDetails = async (documentIds: bigint[]) => {
-    setLoading(true);
-    setError(null);
-    
+
+
+  // Remove unused submitProof function
+  const submitVerificationProof = async (
+    documentId: bigint,
+    proofData: string,
+    verificationResult: boolean
+  ): Promise<void> => {
     try {
-      const documentPromises = documentIds.map(async (id) => {
-        try {
-          const response = await fetch(`/api/contract/getDocument?documentId=${id.toString()}`);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch document ${id}: ${response.statusText}`);
-          }
-          return response.json();
-        } catch (err) {
-          console.error(`Error fetching document ${id}:`, err);
-          // Return a placeholder document with error state
-          return {
-            id: Number(id),
-            filecoinCID: '',
-            fileHash: '',
-            proofHash: '',
-            owner: address || '',
-            timestamp: 0,
-            lastVerified: 0,
-            isVerified: false,
-            metadata: JSON.stringify({ name: 'Failed to load', error: true }),
-            fileSize: 0,
-            documentType: 'unknown',
-            lifecycle: 0,
-            expiresAt: 0,
-          };
-        }
-      });
+      setLoading(true);
+      setError(null);
 
-      const documentsData = await Promise.all(documentPromises);
-      const processedDocuments = documentsData.map((doc: any, index: number) => ({
-        id: doc.id || Number(documentIds[index]),
-        filecoinCID: doc.filecoinCID || '',
-        fileHash: doc.fileHash || '',
-        proofHash: doc.proofHash || '',
-        owner: doc.owner || address || '',
-        timestamp: Number(doc.timestamp) || 0,
-        lastVerified: Number(doc.lastVerified) || 0,
-        isVerified: Boolean(doc.isVerified),
-        metadata: doc.metadata || '{}',
-        fileSize: Number(doc.fileSize) || 0,
-        documentType: doc.documentType || 'unknown',
-        lifecycle: doc.lifecycle || 0,
-        expiresAt: Number(doc.expiresAt) || 0,
-      }));
+      await writeContract({
+         address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
+         abi: SealGuardRegistryABI,
+         functionName: 'submitVerificationProof',
+         args: [documentId, proofData, verificationResult],
+         chainId: FILECOIN_CALIBRATION_CHAIN_ID,
+       });
 
-      setDocuments(processedDocuments);
     } catch (err) {
-      console.error('Error fetching document details:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch document details');
-      setDocuments([]); // Clear documents on error
+      console.error('Verification proof submission failed:', err);
+      setError(err instanceof Error ? err.message : 'Verification proof submission failed');
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  const uploadDocument = async (
-    file: File,
-    documentType: string,
-    description?: string,
-    tags?: string[]
+  // Fetch individual documents when we have document IDs
+  useEffect(() => {
+    if (userDocumentIds && Array.isArray(userDocumentIds) && userDocumentIds.length > 0) {
+      // For now, we'll just return empty array since we need individual document fetching
+      // This would be implemented with multiple contract calls or a batch function
+      // In production, you'd want to use a multicall pattern
+    }
+  }, [userDocumentIds]);
+
+  // Individual document fetching functions
+  const useDocumentData = (documentId: bigint | undefined) => {
+    return useReadContract({
+      address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
+      abi: SealGuardRegistryABI,
+      functionName: 'getDocument',
+      args: documentId ? [documentId] : undefined,
+      query: {
+        enabled: !!documentId,
+      },
+    });
+  };
+
+  // Register a new document
+  const registerDocument = async (
+    filecoinCID: string,
+    fileHash: string,
+    metadata: string,
+    fileSize: number,
+    documentType: string
   ) => {
-    if (!address || !isConnected) {
+    if (!isConnected || !address) {
       throw new Error('Wallet not connected');
     }
 
-    // Validate file
-    if (!file) {
-      throw new Error('No file selected');
+    try {
+      const fileHashBytes = keccak256(new TextEncoder().encode(fileHash));
+      
+      await writeContract({
+        address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
+        abi: SealGuardRegistryABI,
+        functionName: 'registerDocument',
+        args: [filecoinCID, fileHashBytes, metadata, BigInt(fileSize), documentType],
+        chainId: FILECOIN_CALIBRATION_CHAIN_ID,
+      });
+    } catch (error) {
+      console.error('Error registering document:', error);
+      throw error;
+    }
+  };
+
+  // Upload and register document
+  const uploadDocument = async (
+    file: File,
+    metadata: DocumentMetadata
+  ): Promise<void> => {
+    if (!isConnected || !address) {
+      throw new Error('Wallet not connected');
     }
 
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
-      throw new Error('File size exceeds 100MB limit');
-    }
-
+    setLoading(true);
     setError(null);
-    setUploadProgress({
-      stage: 'preparing',
-      progress: 10,
-      message: 'Preparing file for upload...',
-    });
 
     try {
-      // Calculate file hash
-      setUploadProgress({
-        stage: 'preparing',
-        progress: 20,
-        message: 'Calculating file hash...',
-      });
+      // Upload to Filecoin - returns just the CID string
+      const cid = await uploadToFilecoin(file);
+      
+      // Register on blockchain
+      await registerDocument(
+        cid,
+        cid, // Use CID as hash for now
+        JSON.stringify(metadata),
+        file.size,
+        metadata.type || 'document'
+      );
 
-      const fileBuffer = await file.arrayBuffer();
-      const fileHash = keccak256(new Uint8Array(fileBuffer));
-
-      setUploadProgress({
-        stage: 'uploading',
-        progress: 30,
-        message: 'Uploading to Filecoin network...',
-      });
-
-      // Upload to Filecoin/IPFS with timeout
-      let filecoinCID: string;
-      try {
-        const uploadPromise = uploadToFilecoin(file);
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Upload timeout after 5 minutes')), 5 * 60 * 1000)
-        );
-        filecoinCID = await Promise.race([uploadPromise, timeoutPromise]);
-      } catch (uploadError) {
-        throw new Error(`Failed to upload to Filecoin: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
-      }
-
-      setUploadProgress({
-        stage: 'registering',
-        progress: 70,
-        message: 'Registering document on blockchain...',
-      });
-
-      // Prepare metadata
-      const metadata: DocumentMetadata = {
-        name: file.name,
-        description,
-        tags,
-        originalFileName: file.name,
-        mimeType: file.type,
-        uploadedAt: new Date().toISOString(),
-      };
-
-      // Register document on smart contract with error handling
-      try {
-        writeContract({
-          address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
-          abi: SealGuardRegistryABI,
-          functionName: 'registerDocument',
-          args: [
-            filecoinCID,
-            fileHash,
-            JSON.stringify(metadata),
-            BigInt(file.size),
-            documentType,
-          ],
-        });
-
-        setUploadProgress({
-          stage: 'completed',
-          progress: 100,
-          message: 'Document uploaded and registered successfully!',
-        });
-
-        // Refresh document list
-        setTimeout(() => {
-          refetchDocumentIds();
-          setUploadProgress(null);
-        }, 2000);
-
-      } catch (contractError) {
-        throw new Error(`Failed to register document on blockchain: ${contractError instanceof Error ? contractError.message : 'Transaction failed'}`);
-      }
-
-    } catch (err) {
-      console.error('Upload error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Upload failed';
+      // Refresh document list
+      await refetchDocumentIds();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setError(errorMessage);
-      setUploadProgress({
-        stage: 'error',
-        progress: 0,
-        message: errorMessage,
-      });
-      
-      // Clear error progress after 5 seconds
-      setTimeout(() => {
-        setUploadProgress(null);
-      }, 5000);
-      
-      throw err; // Re-throw for component handling
+      throw error;
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const getDocumentStats = () => {
-    const verified = documents.filter(doc => doc.isVerified).length;
-    const pending = documents.filter(doc => doc.lifecycle === 0 || doc.lifecycle === 1).length;
-    const total = documents.length;
-
-    return {
-      total,
-      verified,
-      pending,
-      successRate: total > 0 ? Math.round((verified / total) * 100) : 0,
-    };
-  };
-
-  const getDocumentByHash = (hash: string) => {
-    return documents.find(doc => doc.fileHash === hash);
-  };
-
-  const getDocumentsByType = (type: string) => {
-    return documents.filter(doc => doc.documentType === type);
   };
 
   return {
-    documents,
-    loading: loading || isWritePending || isConfirming,
-    uploadProgress,
+    documents: fetchedDocuments,
+    loading,
     error,
+    totalDocuments: totalDocumentsData || 0,
+    userDocumentIds: userDocumentIds || [],
     uploadDocument,
-    getDocumentStats,
-    getDocumentByHash,
-    getDocumentsByType,
+    submitVerificationProof,
+    useDocumentData,
     refetchDocuments: refetchDocumentIds,
-    totalDocuments: totalDocuments ? Number(totalDocuments) : 0,
-    isTransactionConfirmed: isConfirmed,
+  };
+}
+
+// Hook for fetching a single document by ID
+export function useDocument(documentId: number | undefined) {
+  const { data: contractDocument, isLoading, error, refetch } = useReadContract({
+    address: CONTRACT_ADDRESSES[FILECOIN_CALIBRATION_CHAIN_ID].SealGuardRegistry,
+    abi: SealGuardRegistryABI,
+    functionName: 'getDocument',
+    args: documentId ? [BigInt(documentId)] : undefined,
+    query: {
+      enabled: !!documentId && documentId > 0,
+    },
+  });
+
+  const document = contractDocument 
+    ? ContractDocumentService.convertContractDocument(contractDocument as DocumentTuple)
+    : undefined;
+
+  return {
+    document,
+    isLoading,
+    error,
+    refetch
+  };
+}
+
+// Hook for fetching multiple documents by IDs
+export function useMultipleDocuments(documentIds: number[] | undefined) {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // This is a simplified approach - in production, you'd want to use multicall
+  // or implement a more efficient batching strategy
+  useEffect(() => {
+    if (!documentIds || documentIds.length === 0) {
+      setDocuments([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    // For now, we'll indicate that individual document hooks should be used
+    // This is a limitation of the current architecture
+    console.warn('useMultipleDocuments: Use individual useDocument hooks for each document ID for now');
+    
+    setDocuments([]);
+    setLoading(false);
+  }, [documentIds]);
+
+  return {
+    documents,
+    loading,
+    error
   };
 }

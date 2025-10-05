@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: sealguard-frontend
+    env: node
+    plan: free
+    buildCommand: cd src/frontend && pnpm install && pnpm build
+    startCommand: cd src/frontend && pnpm preview --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_WALLETCONNECT_PROJECT_ID
+        sync: false
+      - key: VITE_PINATA_JWT
+        sync: false
+      - key: VITE_FILECOIN_CALIBRATION_RPC
+        value: https://api.calibration.node.glif.io/rpc/v1
+      - key: VITE_CONTRACT_ADDRESS
+        sync: false
+    autoDeploy: true
+    branch: main
+    rootDir: /
