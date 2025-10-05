@@ -144,8 +144,8 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Upload New Document</h3>
-          <p className="text-gray-600 mb-6">Securely store and verify your documents on the blockchain</p>
+          <h3 className="text-lg font-medium text-black mb-2">Upload New Document</h3>
+          <p className="text-black mb-6">Securely store and verify your documents on the blockchain</p>
         </div>
 
         {/* Upload Progress */}
@@ -207,8 +207,8 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                <p className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</p>
+                <p className="text-sm font-medium text-black">{selectedFile.name}</p>
+                <p className="text-xs text-black">{formatFileSize(selectedFile.size)}</p>
               </div>
               <button
                 onClick={(e) => {
@@ -221,12 +221,12 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
               </button>
             </div>
           ) : (
-            <div className="text-gray-500">
+            <div className="text-black">
               <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <p className="text-sm">Click to upload or drag and drop</p>
-              <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, TXT up to 100MB</p>
+              <p className="text-xs text-black mt-1">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, TXT up to 100MB</p>
             </div>
           )}
         </div>
@@ -235,7 +235,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
         {selectedFile && (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-black mb-2">
                 Document Type *
               </label>
               <select
@@ -252,7 +252,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-black mb-2">
                 Description
               </label>
               <textarea
@@ -265,7 +265,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-black mb-2">
                 Tags
               </label>
               <input
@@ -275,7 +275,7 @@ export default function DocumentUpload({ onUploadComplete, className = '' }: Doc
                 placeholder="Enter tags separated by commas (e.g., important, confidential, 2024)"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1">Separate multiple tags with commas</p>
+              <p className="text-xs text-black mt-1">Separate multiple tags with commas</p>
             </div>
 
             <button

@@ -442,6 +442,41 @@ p {
   }
 }
 
+/* Text Visibility Improvements for Dashboard and Popups */
+.dashboard-container .text-gray-600,
+.dashboard-container .text-gray-500,
+.dashboard-container .text-gray-400,
+.dashboard-container .text-gray-700,
+.dashboard-container .text-gray-800,
+.dashboard-container .text-gray-900,
+.modal .text-gray-600,
+.modal .text-gray-500,
+.modal .text-gray-400,
+.modal .text-gray-700,
+.modal .text-gray-800,
+.modal .text-gray-900,
+.popup .text-gray-600,
+.popup .text-gray-500,
+.popup .text-gray-400,
+.popup .text-gray-700,
+.popup .text-gray-800,
+.popup .text-gray-900 {
+  color: #000000 !important;
+}
+
+/* Ensure white text on dark backgrounds remains visible */
+.dashboard-container .bg-blue-600 .text-white,
+.dashboard-container .bg-blue-700 .text-white,
+.dashboard-container .bg-primary .text-white,
+.modal .bg-blue-600 .text-white,
+.modal .bg-blue-700 .text-white,
+.modal .bg-primary .text-white,
+.popup .bg-blue-600 .text-white,
+.popup .bg-blue-700 .text-white,
+.popup .bg-primary .text-white {
+  color: #ffffff !important;
+}
+
 /* Custom Animations */
 @keyframes spin {
   from {

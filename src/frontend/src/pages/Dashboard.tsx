@@ -167,14 +167,14 @@ export default function Dashboard() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">
+          <p className="text-black">
             Manage and verify your documents with blockchain security
           </p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 text-sm">
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-gray-600">Connected: {address?.slice(0, 6)}...{address?.slice(-4)}</span>
+            <span className="text-black">Connected: {address?.slice(0, 6)}...{address?.slice(-4)}</span>
           </div>
           <button
             onClick={() => setShowUploadModal(true)}
@@ -210,7 +210,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Total Documents</h3>
-            <p className="text-sm text-gray-600">+2 from last month</p>
+            <p className="text-sm text-black">+2 from last month</p>
           </div>
         </div>
 
@@ -229,7 +229,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Verified</h3>
-            <p className="text-sm text-gray-600">83% success rate</p>
+            <p className="text-sm text-black">83% success rate</p>
           </div>
         </div>
 
@@ -248,7 +248,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Pending</h3>
-            <p className="text-sm text-gray-600">Processing...</p>
+            <p className="text-sm text-black">Processing...</p>
           </div>
         </div>
 
@@ -267,7 +267,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Rejected</h3>
-            <p className="text-sm text-gray-600">Needs attention</p>
+            <p className="text-sm text-black">Needs attention</p>
           </div>
         </div>
       </div>
@@ -306,7 +306,7 @@ export default function Dashboard() {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Documents</h2>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-black">
               {filteredDocuments.length} of {stats.total} documents
             </span>
           </div>
@@ -341,7 +341,7 @@ export default function Dashboard() {
           <div className="p-8 text-center">
             <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-black mb-4">
               {searchTerm || statusFilter !== 'all' 
                 ? 'Try adjusting your search or filter criteria.'
                 : 'Upload your first document to get started.'
@@ -410,7 +410,7 @@ export default function Dashboard() {
                           <FileText className="h-5 w-5 text-gray-400 mr-3" />
                           <div>
                             <div className="text-sm font-medium text-gray-900">{docName}</div>
-                            <div className="text-sm text-gray-500">ID: {doc.id}</div>
+                            <div className="text-sm text-black">ID: {doc.id}</div>
                           </div>
                         </div>
                       </td>

@@ -72,7 +72,7 @@ NEXT_PUBLIC_FILECOIN_RPC=https://api.node.glif.io
 ```bash
 NEXT_PUBLIC_APP_NAME=SealGuard
 NEXT_PUBLIC_APP_DESCRIPTION=Decentralized Document Verification Platform
-NEXT_PUBLIC_APP_URL=https://sealguard.app
+NEXT_PUBLIC_APP_URL=https://sealguard.netlify.app
 ```
 
 ## Feature Flags & Development Settings

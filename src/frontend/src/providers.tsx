@@ -1,6 +1,6 @@
 "use client";
 
-import { WagmiProvider } from "wagmi";
+import { WagmiProvider, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
@@ -37,8 +37,13 @@ const wagmiAdapter = new WagmiAdapter({
   ssr: false,
   customRpcUrls: {
     "eip155:314159": [
-      import.meta.env.VITE_FILECOIN_CALIBRATION_RPC || "https://api.calibration.node.glif.io/rpc/v1",
+      { url: import.meta.env.VITE_FILECOIN_CALIBRATION_RPC || "https://api.calibration.node.glif.io/rpc/v1" },
     ] as any,
+  },
+  transports: {
+    [filecoinCalibration.id]: http(
+      import.meta.env.VITE_FILECOIN_CALIBRATION_RPC || "https://api.calibration.node.glif.io/rpc/v1"
+    ),
   },
 });
 
@@ -47,15 +52,24 @@ export const wagmiConfig = wagmiAdapter.wagmiConfig;
 
 // Create AppKit modal
 if (projectId) {
+  const appUrl = (typeof window !== "undefined" && window.location.origin)
+    ? window.location.origin
+    : (import.meta.env.DEV ? "http://localhost:3000" : "https://sealguard.netlify.app");
+
   createAppKit({
     adapters: [wagmiAdapter],
     networks: networks as any,
     projectId,
+    customRpcUrls: {
+      "eip155:314159": [
+        { url: import.meta.env.VITE_FILECOIN_CALIBRATION_RPC || "https://api.calibration.node.glif.io/rpc/v1" },
+      ] as any,
+    },
     metadata: {
       name: "SealGuard",
       description: "Blockchain Document Verification",
-      url: import.meta.env.DEV ? "http://localhost:3000" : "https://sealguard.app",
-      icons: ["https://sealguard.app/icon.png"],
+      url: appUrl,
+      icons: [`${appUrl}/icon.png`],
     },
     features: {
       analytics: true,

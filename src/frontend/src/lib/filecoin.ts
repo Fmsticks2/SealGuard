@@ -54,9 +54,14 @@ export async function uploadToFilecoin(file: File): Promise<string> {
     console.error('Filecoin upload failed:', error);
     
     // Method 3: Final fallback - simulate upload for development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.warn('Using simulated upload for development');
       return await simulateUpload(file);
+    }
+
+    // Propagate detailed error message when available
+    if (error instanceof Error) {
+      throw new Error(`Failed to upload file to Filecoin network: ${error.message}`);
     }
     
     throw new Error('Failed to upload file to Filecoin network');
@@ -76,16 +81,38 @@ async function uploadViaWeb3Storage(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch('https://api.web3.storage/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${WEB3_STORAGE_TOKEN}`,
-    },
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://api.web3.storage/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WEB3_STORAGE_TOKEN}`,
+      },
+      body: formData,
+    });
+  } catch (networkError) {
+    const msg = networkError instanceof Error ? networkError.message : String(networkError);
+    throw new Error(`Web3.Storage upload request failed: ${msg}`);
+  }
 
   if (!response.ok) {
-    throw new Error(`Web3.Storage upload failed: ${response.statusText}`);
+    let errorDetail = '';
+    try {
+      // Try to parse JSON; fallback to text
+      const text = await response.text();
+      errorDetail = text || '';
+    } catch {}
+
+    let hint = '';
+    if (response.status === 401 || response.status === 403) {
+      hint = 'Check VITE_WEB3_STORAGE_TOKEN is set and valid in your production environment.';
+    } else if (response.status === 410 || response.status === 404) {
+      hint = 'The legacy Web3.Storage upload API endpoint is sunset. Migrate to @web3-storage/w3up-client.';
+    } else if (response.status >= 500) {
+      hint = 'Web3.Storage service error. Please retry later.';
+    }
+
+    throw new Error(`Web3.Storage upload failed (${response.status} ${response.statusText})${errorDetail ? `: ${errorDetail}` : ''}${hint ? ` - ${hint}` : ''}`);
   }
 
   const result = await response.json();

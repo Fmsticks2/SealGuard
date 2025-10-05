@@ -160,8 +160,8 @@ export function DocumentVerification({
             <div className="flex items-center space-x-3">
               <Shield className="h-6 w-6 text-blue-600" />
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Document Verification</h2>
-                <p className="text-sm text-gray-600">{documentName}</p>
+                <h2 className="text-xl font-semibold text-black">Document Verification</h2>
+                <p className="text-sm text-black">{documentName}</p>
               </div>
             </div>
             <button
@@ -180,8 +180,8 @@ export function DocumentVerification({
               <div className="flex items-center space-x-3">
                 {getStatusIcon(currentStatus)}
                 <div>
-                  <h3 className="font-medium text-gray-900">Current Status</h3>
-                  <p className="text-sm text-gray-600">Document ID: {documentId}</p>
+                  <h3 className="font-medium text-black">Current Status</h3>
+                  <p className="text-sm text-black">Document ID: {documentId}</p>
                 </div>
               </div>
               <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(currentStatus)}`}>
@@ -195,12 +195,12 @@ export function DocumentVerification({
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center space-x-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm text-gray-600">Loading latest proof...</span>
+                <span className="text-sm text-black">Loading latest proof...</span>
               </div>
             </div>
           ) : latestProof && (latestProof as any).proofHash !== '0x0000000000000000000000000000000000000000000000000000000000000000' ? (
             <div className="bg-blue-50 rounded-lg p-4">
-              <h3 className="font-medium text-gray-900 mb-2">Latest Verification Proof</h3>
+              <h3 className="font-medium text-black mb-2">Latest Verification Proof</h3>
               <div className="space-y-2 text-sm">
                 <div>
                   <span className="font-medium">Proof Hash:</span>
@@ -229,7 +229,7 @@ export function DocumentVerification({
 
           {/* Submit New Proof */}
           <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 mb-4 flex items-center">
+            <h3 className="font-medium text-black mb-4 flex items-center">
               <Upload className="h-4 w-4 mr-2" />
               Submit Verification Proof
             </h3>
@@ -237,7 +237,7 @@ export function DocumentVerification({
             <div className="space-y-4">
               {/* Proof Data Input */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Proof Data
                 </label>
                 <textarea
@@ -251,7 +251,7 @@ export function DocumentVerification({
 
               {/* File Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Or Upload Proof File
                 </label>
                 <input
@@ -261,9 +261,9 @@ export function DocumentVerification({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 {proofFile && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Selected: {proofFile.name}
-                  </p>
+                  <p className="text-sm text-black mt-1">
+                      Selected: {proofFile.name}
+                    </p>
                 )}
               </div>
 
