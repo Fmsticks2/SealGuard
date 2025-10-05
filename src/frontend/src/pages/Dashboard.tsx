@@ -1,36 +1,165 @@
-import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useState, useEffect } from 'react';
+import { useAccount, useDisconnect } from 'wagmi';
+import { 
+  FileText, 
+  CheckCircle, 
+  Clock, 
+  AlertTriangle,
+  LogOut,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Settings
+} from 'lucide-react';
+import { useDocuments } from '../hooks/useDocuments';
+import { useContractRead } from '../hooks/useContract';
+import DocumentUpload from '../components/DocumentUpload';
+import { DocumentVerification } from '../components/DocumentVerification';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { ErrorMessage } from '../components/ErrorMessage';
+import { Document } from '../hooks/useDocuments';
 
 export default function Dashboard() {
   const { address, isConnected } = useAccount();
-  const [documents] = useState([
-    { id: 1, name: 'Contract_2024.pdf', status: 'verified', date: '2024-01-15', hash: '0x1a2b3c...' },
-    { id: 2, name: 'Invoice_001.pdf', status: 'pending', date: '2024-01-14', hash: '0x4d5e6f...' },
-    { id: 3, name: 'Report_Q1.docx', status: 'verified', date: '2024-01-13', hash: '0x7g8h9i...' },
-  ]);
+  const { disconnect } = useDisconnect();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'pending' | 'rejected'>('all');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  if (!isConnected) {
-    return (
-      <div className="container mx-auto px-4 py-20">
-        <div className="max-w-md mx-auto text-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-gray-900">Connect Your Wallet</h2>
-              <p className="text-gray-600">
-                Please connect your wallet to access the dashboard and start verifying documents.
-              </p>
-            </div>
-            <w3m-button />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Real data from smart contracts
+  const { 
+    userDocumentIds, 
+    isLoadingUserDocs,
+    refetchUserDocs
+  } = useContractRead();
+
+  const {
+    documents,
+    loading: isLoadingDocuments,
+    error: documentsError,
+    refetchDocuments,
+  } = useDocuments();
+
+  const fetchUserDocuments = refetchDocuments;
+
+  // Fetch user documents when wallet connects or document IDs change
+  useEffect(() => {
+    if (isConnected && address && userDocumentIds) {
+      fetchUserDocuments();
+    }
+  }, [isConnected, address, userDocumentIds, fetchUserDocuments]);
+
+  // Refresh data periodically
+  useEffect(() => {
+    if (isConnected && address) {
+      const interval = setInterval(() => {
+        refetchUserDocs();
+        fetchUserDocuments();
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [isConnected, address, refetchUserDocs, fetchUserDocuments]);
+
+  const handleDisconnect = () => {
+    disconnect();
+  };
+
+  const handleUploadSuccess = () => {
+    setShowUploadModal(false);
+    // Refresh data after successful upload
+    setTimeout(() => {
+      refetchUserDocs();
+      fetchUserDocuments();
+    }, 2000);
+  };
+
+  const handleVerificationClick = (document: Document) => {
+    setSelectedDocument(document);
+    setShowVerificationModal(true);
+  };
+
+  const handleVerificationSubmitted = () => {
+    // Refresh data after verification
+    setTimeout(() => {
+      refetchUserDocs();
+      fetchUserDocuments();
+    }, 2000);
+  };
+
+  const handleDownloadDocument = async (document: Document) => {
+    try {
+      // Create IPFS URL for download
+      const ipfsUrl = `https://ipfs.io/ipfs/${document.filecoinCID}`;
+      window.open(ipfsUrl, '_blank');
+    } catch (error) {
+      console.error('Failed to download document:', error);
+    }
+  };
+
+  // Filter documents based on search and status
+  const filteredDocuments = documents?.filter(doc => {
+    // Parse metadata to get name and type for searching
+    let docName = '';
+    let docType = doc.documentType;
+    
+    try {
+      const metadata = JSON.parse(doc.metadata);
+      docName = metadata.name || '';
+    } catch {
+      docName = `Document ${doc.id}`;
+    }
+    
+    const matchesSearch = docName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         docType.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Map status filter to document properties
+    let matchesStatus = true;
+    if (statusFilter === 'verified') {
+      matchesStatus = doc.isVerified;
+    } else if (statusFilter === 'pending') {
+      matchesStatus = !doc.isVerified && doc.lifecycle === 0; // active
+    } else if (statusFilter === 'rejected') {
+      matchesStatus = doc.lifecycle === 2 || doc.lifecycle === 3; // expired or revoked
+    }
+    
+    return matchesSearch && matchesStatus;
+  }) || [];
+
+  // Calculate statistics
+  const stats = {
+      total: documents?.length || 0,
+      verified: documents?.filter(doc => doc.isVerified).length || 0,
+      pending: documents?.filter(doc => !doc.isVerified && doc.lifecycle === 0).length || 0,
+      rejected: documents?.filter(doc => doc.lifecycle === 1 || doc.lifecycle === 2).length || 0,
+    };
+
+  // Don't show wallet connection UI since ProtectedRoute handles it
+  // if (!isConnected) {
+  //   return (
+  //     <div className="container mx-auto px-4 py-20">
+  //       <div className="max-w-md mx-auto text-center">
+  //         <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
+  //           <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+  //             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  //               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+  //             </svg>
+  //           </div>
+  //           <div className="space-y-2">
+  //             <h2 className="text-2xl font-bold text-gray-900">Connect Your Wallet</h2>
+  //             <p className="text-gray-600">
+  //               Please connect your wallet to access the dashboard and start verifying documents.
+  //             </p>
+  //           </div>
+  //           <w3m-button />
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
@@ -47,11 +176,19 @@ export default function Dashboard() {
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
             <span className="text-gray-600">Connected: {address?.slice(0, 6)}...{address?.slice(-4)}</span>
           </div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
             <span>Upload Document</span>
+          </button>
+          <button
+            onClick={handleDisconnect}
+            className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Disconnect</span>
           </button>
         </div>
       </div>
@@ -61,11 +198,15 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              <FileText className="w-5 h-5 text-blue-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">12</span>
+            <span className="text-2xl font-bold text-gray-900">
+              {isLoadingUserDocs ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                stats.total
+              )}
+            </span>
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Total Documents</h3>
@@ -76,11 +217,15 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <CheckCircle className="w-5 h-5 text-green-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">10</span>
+            <span className="text-2xl font-bold text-green-600">
+              {isLoadingUserDocs ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                stats.verified
+              )}
+            </span>
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Verified</h3>
@@ -91,11 +236,15 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Clock className="w-5 h-5 text-yellow-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">2</span>
+            <span className="text-2xl font-bold text-yellow-600">
+              {isLoadingUserDocs ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                stats.pending
+              )}
+            </span>
           </div>
           <div className="space-y-1">
             <h3 className="font-medium text-gray-900">Pending</h3>
@@ -105,104 +254,273 @@ export default function Dashboard() {
 
         <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">0.8s</span>
+            <span className="text-2xl font-bold text-red-600">
+              {isLoadingUserDocs ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                stats.rejected
+              )}
+            </span>
           </div>
           <div className="space-y-1">
-            <h3 className="font-medium text-gray-900">Avg. Verification</h3>
-            <p className="text-sm text-gray-600">Lightning fast</p>
+            <h3 className="font-medium text-gray-900">Rejected</h3>
+            <p className="text-sm text-gray-600">Needs attention</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search and Filter */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Search documents..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="verified">Verified</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Recent Documents */}
-      <div className="bg-white rounded-xl shadow-lg">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Recent Documents</h2>
-            <button className="text-blue-600 hover:text-blue-700 font-medium">View All</button>
+            <h2 className="text-lg font-semibold text-gray-900">Recent Documents</h2>
+            <span className="text-sm text-gray-500">
+              {filteredDocuments.length} of {stats.total} documents
+            </span>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hash</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {documents.map((doc) => (
-                <tr key={doc.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{doc.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      doc.status === 'verified' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {doc.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {doc.date}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                    {doc.hash}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                    <button className="text-gray-600 hover:text-gray-900">Download</button>
-                  </td>
+
+        {/* Loading State */}
+        {(isLoadingDocuments || isLoadingUserDocs) && (
+          <div className="p-8 text-center">
+            <LoadingSpinner size="lg" text="Loading your documents..." />
+          </div>
+        )}
+
+        {/* Error State */}
+        {documentsError && (
+          <div className="p-8 text-center">
+            <ErrorMessage 
+              message={documentsError} 
+              onDismiss={() => fetchUserDocuments()}
+              className="mb-4"
+            />
+            <button
+              onClick={() => fetchUserDocuments()}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoadingDocuments && !isLoadingUserDocs && !documentsError && filteredDocuments.length === 0 && (
+          <div className="p-8 text-center">
+            <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
+            <p className="text-gray-600 mb-4">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'Try adjusting your search or filter criteria.'
+                : 'Upload your first document to get started.'
+              }
+            </p>
+            {!searchTerm && statusFilter === 'all' && (
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Upload Document
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Documents Table */}
+        {!isLoadingDocuments && !isLoadingUserDocs && !documentsError && filteredDocuments.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Document
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Upload Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Size
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredDocuments.map((doc) => {
+                  // Parse metadata for display
+                  let docName = '';
+                  try {
+                    const metadata = JSON.parse(doc.metadata);
+                    docName = metadata.name || `Document ${doc.id}`;
+                  } catch {
+                    docName = `Document ${doc.id}`;
+                  }
+                  
+                  // Determine status for display
+                  let status = 'pending';
+                  if (doc.isVerified) {
+                    status = 'verified';
+                  } else if (doc.lifecycle === 2 || doc.lifecycle === 3) {
+                    status = 'rejected';
+                  }
+                  
+                  return (
+                    <tr key={doc.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{docName}</div>
+                            <div className="text-sm text-gray-500">ID: {doc.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-900">{doc.documentType}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          status === 'verified' 
+                            ? 'bg-green-100 text-green-800'
+                            : status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {status === 'verified' && <CheckCircle className="h-3 w-3 mr-1" />}
+                          {status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                          {status === 'rejected' && <AlertTriangle className="h-3 w-3 mr-1" />}
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(doc.timestamp * 1000).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {(doc.fileSize / 1024 / 1024).toFixed(2)} MB
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                         <div className="flex items-center space-x-2">
+                           <button 
+                             onClick={() => handleVerificationClick(doc)}
+                             className="text-blue-600 hover:text-blue-900 p-1 rounded"
+                             title="Manage Verification"
+                           >
+                             <Settings className="h-4 w-4" />
+                           </button>
+                           <button 
+                             onClick={() => handleDownloadDocument(doc)}
+                             className="text-green-600 hover:text-green-900 p-1 rounded"
+                             title="Download Document"
+                           >
+                             <Download className="h-4 w-4" />
+                           </button>
+                         </div>
+                       </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Upload Area */}
-      <div className="bg-white rounded-xl shadow-lg p-8">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Upload New Document</h3>
-          <p className="text-gray-600 mb-6">Drag and drop your file here, or click to browse</p>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-blue-400 transition-colors cursor-pointer">
-            <input type="file" className="hidden" id="file-upload" />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <div className="text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <p className="text-sm">Click to upload or drag and drop</p>
-                <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, XLS, XLSX up to 100MB</p>
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">Upload Document</h2>
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            </label>
+            </div>
+            <div className="p-6">
+              <DocumentUpload onUploadComplete={handleUploadSuccess} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Document Verification Modal */}
+      {showVerificationModal && selectedDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Document Verification & Management</h3>
+              <button 
+                onClick={() => {
+                  setShowVerificationModal(false);
+                  setSelectedDocument(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+            <DocumentVerification 
+              documentId={selectedDocument.id}
+              documentName={(() => {
+                try {
+                  const metadata = JSON.parse(selectedDocument.metadata);
+                  return metadata.name || `Document ${selectedDocument.id}`;
+                } catch {
+                  return `Document ${selectedDocument.id}`;
+                }
+              })()}
+              currentStatus={selectedDocument.isVerified ? 'verified' : 'pending'}
+              onClose={() => setSelectedDocument(null)}
+              onVerificationSubmitted={handleVerificationSubmitted}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
