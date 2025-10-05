@@ -60,9 +60,63 @@ export function useDocuments() {
   });
 
   // Convert bigint[] to number[] for compatibility and fetch documents
-  const fetchedDocuments: Document[] = [];
+  const [fetchedDocuments, setFetchedDocuments] = useState<Document[]>([]);
 
+  // Fetch individual documents when we have document IDs
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!userDocumentIds || !Array.isArray(userDocumentIds) || userDocumentIds.length === 0) {
+        setFetchedDocuments([]);
+        return;
+      }
 
+      setLoading(true);
+      setError(null);
+
+      try {
+        const documents: Document[] = [];
+        
+        // Fetch each document individually
+        for (const docId of userDocumentIds) {
+          try {
+            // Convert bigint to number for the contract call
+            const documentId = typeof docId === 'bigint' ? docId : BigInt(docId);
+            
+            // This would normally be done with useReadContract, but we need to do it imperatively
+            // For now, we'll create a placeholder document structure
+            const document: Document = {
+              id: Number(documentId),
+              filecoinCID: `placeholder-cid-${documentId}`,
+              fileHash: `placeholder-hash-${documentId}`,
+              proofHash: '',
+              owner: address || '',
+              timestamp: Date.now(),
+              lastVerified: 0,
+              isVerified: false,
+              metadata: JSON.stringify({ name: `Document ${documentId}`, type: 'document' }),
+              fileSize: 0,
+              documentType: 'document',
+              lifecycle: 0,
+              expiresAt: 0
+            };
+            
+            documents.push(document);
+          } catch (docError) {
+            console.error(`Error fetching document ${docId}:`, docError);
+          }
+        }
+        
+        setFetchedDocuments(documents);
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch documents');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, [userDocumentIds, address]);
 
   // Remove unused submitProof function
   const submitVerificationProof = async (
@@ -94,11 +148,56 @@ export function useDocuments() {
   // Fetch individual documents when we have document IDs
   useEffect(() => {
     if (userDocumentIds && Array.isArray(userDocumentIds) && userDocumentIds.length > 0) {
-      // For now, we'll just return empty array since we need individual document fetching
-      // This would be implemented with multiple contract calls or a batch function
-      // In production, you'd want to use a multicall pattern
+      // Trigger refetch of documents when user document IDs change
+      const fetchDocuments = async () => {
+        setLoading(true);
+        try {
+          const documents: Document[] = [];
+          
+          // Fetch each document individually
+          for (const docId of userDocumentIds) {
+            try {
+              // Convert bigint to number for the contract call
+              const documentId = typeof docId === 'bigint' ? docId : BigInt(docId);
+              
+              // This would normally be done with useReadContract, but we need to do it imperatively
+              // For now, we'll create a placeholder document structure
+              const document: Document = {
+                id: Number(documentId),
+                filecoinCID: `placeholder-cid-${documentId}`,
+                fileHash: `placeholder-hash-${documentId}`,
+                proofHash: '',
+                owner: address || '',
+                timestamp: Date.now(),
+                lastVerified: 0,
+                isVerified: false,
+                metadata: JSON.stringify({ name: `Document ${documentId}`, type: 'document' }),
+                fileSize: 0,
+                documentType: 'document',
+                lifecycle: 0,
+                expiresAt: 0
+              };
+              
+              documents.push(document);
+            } catch (docError) {
+              console.error(`Error fetching document ${docId}:`, docError);
+            }
+          }
+          
+          setFetchedDocuments(documents);
+        } catch (error) {
+          console.error('Error fetching documents:', error);
+          setError(error instanceof Error ? error.message : 'Failed to fetch documents');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchDocuments();
+    } else {
+      setFetchedDocuments([]);
     }
-  }, [userDocumentIds]);
+  }, [userDocumentIds, address]);
 
   // Individual document fetching functions
   const useDocumentData = (documentId: bigint | undefined) => {
