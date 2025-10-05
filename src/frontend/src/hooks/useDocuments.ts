@@ -157,6 +157,10 @@ export function useDocuments() {
     if (!userDocumentIds) {
       setLoading(false);
       setFetchedDocuments([]);
+    } else if (Array.isArray(userDocumentIds) && userDocumentIds.length === 0) {
+      // If we have an empty array, we're not loading and have no documents
+      setLoading(false);
+      setFetchedDocuments([]);
     }
   }, [userDocumentIds]);
 
