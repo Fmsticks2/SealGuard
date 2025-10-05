@@ -13,12 +13,6 @@
 [build.processing]
   skip_processing = true
 
-# Explicitly disable Next.js plugin
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-  [plugins.inputs]
-    disable = true
-
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
   from = "/*"
