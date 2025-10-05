@@ -2,36 +2,28 @@
 # Site Settings → Environment Variables
 
 # REQUIRED - Get from https://cloud.reown.com/
-NEXT_PUBLIC_REOWN_PROJECT_ID=your_reown_project_id_here
+VITE_REOWN_PROJECT_ID=e9b8bea6c20127785f5864276a38fa3d
 
-# Contract Addresses - Filecoin Calibration Testnet
-NEXT_PUBLIC_REGISTRY_CONTRACT=0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F
-NEXT_PUBLIC_ACCESS_CONTROL_CONTRACT=0xF565086417Bf8ba76e4FaFC9F0088818eA027539
-NEXT_PUBLIC_MULTISIG_CONTRACT=0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8
+# Filecoin RPC (Optional - has fallback to https://api.calibration.node.glif.io/rpc/v1)
+VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
 
-# Network Configuration
-NEXT_PUBLIC_DEFAULT_CHAIN_ID=314159
-NEXT_PUBLIC_NETWORK_NAME=Filecoin Calibration
-
-# Filecoin RPC (Optional - has fallback)
-NEXT_PUBLIC_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
-
-# Application Settings - UPDATE THE URL WITH YOUR NETLIFY DOMAIN
-NEXT_PUBLIC_APP_NAME=SealGuard
-NEXT_PUBLIC_APP_DESCRIPTION=Decentralized Document Verification Platform
-NEXT_PUBLIC_APP_URL=https://your-site-name.netlify.app
-
-# Feature Flags
-NEXT_PUBLIC_ENABLE_ANALYTICS=true
-NEXT_PUBLIC_ENABLE_ONRAMP=true
-NEXT_PUBLIC_DEBUG_MODE=false
-
-# IPFS Configuration
-NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
-NEXT_PUBLIC_FILECOIN_RPC=https://api.node.glif.io
+# Web3.Storage Token (Optional - for IPFS uploads via Web3.Storage)
+# Get from https://web3.storage/
+VITE_WEB3_STORAGE_TOKEN=your_web3_storage_token_here
 
 # IMPORTANT NOTES:
-# 1. Replace "your_reown_project_id_here" with your actual Reown Project ID
-# 2. Replace "your-site-name.netlify.app" with your actual Netlify domain
-# 3. All variables starting with NEXT_PUBLIC_ are exposed to the client
-# 4. Never include private keys or sensitive information
+# 1. Replace "your_reown_project_id_here" with your actual Reown Project ID from https://cloud.reown.com/
+# 2. Replace "your_web3_storage_token_here" with your Web3.Storage API token (optional)
+# 3. Contract addresses are hardcoded in the app for Filecoin Calibration Testnet:
+#    - SealGuardRegistry: 0xcBB12aBDA134ac0444f2aa41E98EDD57f8D5631F
+#    - SealGuardAccessControl: 0xF565086417Bf8ba76e4FaFC9F0088818eA027539
+#    - SealGuardMultiSig: 0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8
+# 4. All VITE_ variables are exposed to the client-side code
+# 5. The app is configured for Filecoin Calibration Testnet (Chain ID: 314159)
+
+# MINIMAL SETUP (Only required variable):
+# VITE_REOWN_PROJECT_ID=your_reown_project_id_here
+
+# OPTIONAL VARIABLES:
+# VITE_FILECOIN_CALIBRATION_RPC=https://api.calibration.node.glif.io/rpc/v1
+# VITE_WEB3_STORAGE_TOKEN=your_web3_storage_token_here
