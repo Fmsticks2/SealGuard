@@ -17,7 +17,6 @@ import { useContractRead } from '../hooks/useContract';
 import DocumentUpload from '../components/DocumentUpload';
 import { DocumentVerification } from '../components/DocumentVerification';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { ErrorMessage } from '../components/ErrorMessage';
 import { Document } from '../hooks/useDocuments';
 
 export default function Dashboard() {
@@ -45,9 +44,13 @@ export default function Dashboard() {
 
   const fetchUserDocuments = refetchDocuments;
 
+  // Determine overall loading state - we're loading if either user docs are loading OR documents are loading
+  // But only show loading if we have user document IDs and are fetching documents, or if we're still getting user doc IDs
+  const isLoading = isLoadingUserDocs || (userDocumentIds && userDocumentIds.length > 0 && isLoadingDocuments);
+
   // Fetch user documents when wallet connects or document IDs change
   useEffect(() => {
-    if (isConnected && address && userDocumentIds) {
+    if (isConnected && address && userDocumentIds && userDocumentIds.length > 0) {
       fetchUserDocuments();
     }
   }, [isConnected, address, userDocumentIds, fetchUserDocuments]);
@@ -338,53 +341,79 @@ export default function Dashboard() {
         )}
 
         {/* Loading State */}
-        {(isLoadingDocuments || isLoadingUserDocs) && (
-          <div className="p-8 text-center">
-            <LoadingSpinner size="lg" text="Loading your documents..." />
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="text-gray-600">Loading your documents...</span>
+            </div>
           </div>
         )}
 
         {/* Error State */}
-        {documentsError && (
-          <div className="p-8 text-center">
-            <ErrorMessage 
-              message={documentsError} 
-              onDismiss={() => fetchUserDocuments()}
-              className="mb-4"
-            />
+        {!isLoading && documentsError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <div className="text-red-600 mb-2">
+              <svg className="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Documents</h3>
+            <p className="text-red-600 mb-4">{documentsError}</p>
             <button
-              onClick={() => fetchUserDocuments()}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={() => refetchDocuments()}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
             >
-              Retry
+              Try Again
             </button>
           </div>
         )}
 
         {/* Empty State */}
-        {!isLoadingDocuments && !isLoadingUserDocs && !documentsError && filteredDocuments.length === 0 && (
-          <div className="p-8 text-center">
-            <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
-            <p className="text-black mb-4">
-              {searchTerm || statusFilter !== 'all' 
-                ? 'Try adjusting your search or filter criteria.'
-                : 'Upload your first document to get started.'
-              }
+        {!isLoading && !documentsError && (!userDocumentIds || userDocumentIds.length === 0) && (
+          <div className="text-center py-12">
+            <div className="text-gray-400 mb-4">
+              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Documents Yet</h3>
+            <p className="text-gray-500 mb-6">Upload your first document to get started with SealGuard verification.</p>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Upload Document
+            </button>
+          </div>
+        )}
+
+        {/* No Results State (after filtering) */}
+        {!isLoading && !documentsError && userDocumentIds && userDocumentIds.length > 0 && filteredDocuments.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-gray-400 mb-4">
+              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Results Found</h3>
+            <p className="text-gray-500 mb-4">
+              No documents match your current search or filter criteria.
             </p>
-            {!searchTerm && statusFilter === 'all' && (
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Upload Document
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+              }}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Clear Filters
+            </button>
           </div>
         )}
 
         {/* Documents Table */}
-        {!isLoadingDocuments && !isLoadingUserDocs && !documentsError && filteredDocuments.length > 0 && (
+        {!isLoading && !documentsError && filteredDocuments.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
