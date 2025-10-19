@@ -275,6 +275,41 @@ export function useDocuments() {
     }
   };
 
+  // New: Register a document using an externally obtained CID (e.g., Synapse CommP)
+  const registerDocumentFromExternalUpload = async (
+    externalCid: string,
+    fileSize: number,
+    metadata: DocumentMetadata
+  ): Promise<void> => {
+    if (!isConnected || !address) {
+      throw new Error('Wallet not connected');
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await registerDocument(
+        externalCid,
+        externalCid, // Use external CID/CommP as hash placeholder
+        JSON.stringify(metadata),
+        fileSize,
+        metadata.type || 'document'
+      );
+
+      await refetchDocumentIds();
+      setTimeout(async () => {
+        await refetchDocumentIds();
+      }, 3000);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Function to manually refresh documents
   const refetchDocuments = async () => {
     if (!userDocumentIds || (userDocumentIds as bigint[]).length === 0 || !address) {
@@ -366,6 +401,7 @@ export function useDocuments() {
     totalDocuments: totalDocumentsData || 0,
     userDocumentIds: userDocumentIds || [],
     uploadDocument,
+    registerDocumentFromExternalUpload,
     submitVerificationProof,
     useDocumentData,
     refetchDocuments,

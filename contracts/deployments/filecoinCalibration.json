@@ -15,6 +15,10 @@
     "SealGuardMultiSig": {
       "address": "0xa6e75e7bFc73c44C16aaec914e340843a6A66Df8",
       "transactionHash": "0x6c2d09ce62e34b3c0f8dd59a5d489b6a750959ba93d7c951cc9d4246c72934bc"
+    },
+    "SubscriptionPayments": {
+      "address": "0x9CC47525a6C2f3e915D44cA785c7B11dE164AF07",
+      "transactionHash": "0xe16fe0ff501baa95c2712fbe5451de82340c0c72569ea4c716dcf03756ab0541"
     }
   }
 }

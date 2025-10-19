@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useDocuments } from '../hooks/useDocuments';
+import { useSynapse } from '../hooks/useSynapse';
 import { mapErrorToFriendlyMessage, getErrorIcon, getErrorColors, FriendlyError } from '../utils/errorMessages';
 
 interface DocumentUploadProps {
@@ -30,13 +31,15 @@ const ALLOWED_TYPES = [
 ];
 
 export default function DocumentUpload({ onUploadComplete, onClose, className = '' }: DocumentUploadProps) {
-  const { uploadDocument, error, loading } = useDocuments();
+  const { uploadDocument, registerDocumentFromExternalUpload, error, loading } = useDocuments();
+  const { ready: synapseReady, uploadViaSynapse } = useSynapse();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('other');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [friendlyError, setFriendlyError] = useState<FriendlyError | null>(null);
+  const [storageMethod, setStorageMethod] = useState<'ipfs' | 'synapse'>('ipfs');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
@@ -117,13 +120,24 @@ export default function DocumentUpload({ onUploadComplete, onClose, className = 
         tags: tagArray
       };
       
-      await uploadDocument(selectedFile, metadata);
+      if (storageMethod === 'synapse') {
+        if (!synapseReady) {
+          const friendlyErrorMsg = mapErrorToFriendlyMessage('Synapse not ready. Connect wallet and try again.');
+          setFriendlyError(friendlyErrorMsg);
+          return;
+        }
+        const result = await uploadViaSynapse(selectedFile);
+        await registerDocumentFromExternalUpload(result.commp, selectedFile.size, metadata);
+      } else {
+        await uploadDocument(selectedFile, metadata);
+      }
       
       // Reset form
       setSelectedFile(null);
       setDescription('');
       setTags('');
       setDocumentType('other');
+      setStorageMethod('ipfs');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -244,6 +258,36 @@ export default function DocumentUpload({ onUploadComplete, onClose, className = 
           </div>
         )}
 
+        {/* Storage Method Selection */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-black">Storage Method</label>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black">
+              <input
+                type="radio"
+                name="storageMethod"
+                value="ipfs"
+                checked={storageMethod === 'ipfs'}
+                onChange={() => setStorageMethod('ipfs')}
+              />
+              IPFS (Pinata)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-black">
+              <input
+                type="radio"
+                name="storageMethod"
+                value="synapse"
+                checked={storageMethod === 'synapse'}
+                onChange={() => setStorageMethod('synapse')}
+              />
+              Synapse Warm Storage (paid via USDFC)
+            </label>
+          </div>
+          {storageMethod === 'synapse' && (
+            <p className="text-xs text-black">Requires USDFC deposit and service allowance. Use Payments panel.</p>
+          )}
+        </div>
+
         {/* File Drop Zone */}
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
@@ -348,10 +392,10 @@ export default function DocumentUpload({ onUploadComplete, onClose, className = 
 
             <button
               onClick={handleUpload}
-              disabled={loading || !selectedFile}
+              disabled={loading || !selectedFile || (storageMethod === 'synapse' && !synapseReady)}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
             >
-              {loading ? 'Uploading...' : 'Upload & Register Document'}
+              {loading ? 'Uploading...' : storageMethod === 'synapse' ? 'Pay & Upload via Synapse' : 'Upload & Register Document'}
             </button>
           </div>
         )}

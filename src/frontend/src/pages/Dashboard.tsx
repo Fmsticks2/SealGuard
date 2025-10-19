@@ -18,6 +18,9 @@ import DocumentUpload from '../components/DocumentUpload';
 import { DocumentVerification } from '../components/DocumentVerification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Document } from '../hooks/useDocuments';
+import { useSynapse } from '../hooks/useSynapse';
+import { ethers } from 'ethers';
+import { paySubscription, getSubscriptionExpiry } from '../lib/subscription';
 
 export default function Dashboard() {
   const { address, isConnected } = useAccount();
@@ -27,7 +30,59 @@ export default function Dashboard() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const { ready, getUSDFCAccountInfo, depositUSDFC, approveWarmStorage, getNativeTokenSymbol } = useSynapse();
+  const [depositAmount, setDepositAmount] = useState('');
+  const [rateAllowance, setRateAllowance] = useState('');
+  const [lockupAllowance, setLockupAllowance] = useState('');
+  const [depositTxHash, setDepositTxHash] = useState<string | null>(null);
+  const [approveTxHash, setApproveTxHash] = useState<string | null>(null);
+  const [accountInfo, setAccountInfo] = useState<any | null>(null);
+  // removed unused jsonify helper
 
+  // UI/UX: derived and status states
+  const [isDepositing, setIsDepositing] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [depositStatus, setDepositStatus] = useState<string | null>(null);
+  const [approveStatus, setApproveStatus] = useState<string | null>(null);
+  const [errorDeposit, setErrorDeposit] = useState<string | null>(null);
+  const [errorApprove, setErrorApprove] = useState<string | null>(null);
+  const [showRawAccount, setShowRawAccount] = useState(false);
+  const [tokenSymbol, setTokenSymbol] = useState<'FIL' | 'tFIL' | null>(null);
+  const [subAmount, setSubAmount] = useState('');
+  const [isSubPaying, setIsSubPaying] = useState(false);
+  const [subPayStatus, setSubPayStatus] = useState<string | null>(null);
+  const [subPayError, setSubPayError] = useState<string | null>(null);
+  const [subPayTxHash, setSubPayTxHash] = useState<string | null>(null);
+  const [subscriptionExpiry, setSubscriptionExpiry] = useState<bigint | null>(null);
+
+  const validPositiveNumber = (str: string) => {
+    const num = Number(str);
+    return Number.isFinite(num) && num > 0;
+  };
+  const fmtUnits = (value: any, decimals = 18) => {
+    try {
+      const big = typeof value === 'bigint' ? value : BigInt(value);
+      const num = Number(ethers.formatUnits(big, decimals));
+      return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    } catch {
+      return String(value);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!ready) return;
+      try {
+        const sym = await getNativeTokenSymbol();
+        if (mounted) setTokenSymbol(sym);
+      } catch (e) {
+        console.warn('Failed to get native token symbol, defaulting to FIL', e);
+        if (mounted) setTokenSymbol('FIL');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [ready, getNativeTokenSymbol]);
   // Real data from smart contracts
   const { 
     userDocumentIds, 
@@ -78,6 +133,25 @@ export default function Dashboard() {
     }
   }, [isConnected, address, refetchUserDocs, fetchUserDocuments]);
 
+  useEffect(() => {
+    if (isConnected && ready) {
+      (async () => {
+        try {
+          const info = await getUSDFCAccountInfo();
+          setAccountInfo(info);
+          try {
+            const expiry = await getSubscriptionExpiry();
+            setSubscriptionExpiry(expiry);
+          } catch (e) {
+            // ignore
+          }
+        } catch (e) {
+          console.error('Failed to get USDFC account info', e);
+        }
+      })();
+    }
+  }, [isConnected, ready]);
+
   const handleDisconnect = () => {
     disconnect();
   };
@@ -117,6 +191,102 @@ export default function Dashboard() {
       window.open(ipfsUrl, '_blank');
     } catch (error) {
       console.error('Failed to download document:', error);
+    }
+  };
+
+  const handleDeposit = async () => {
+    setErrorDeposit(null);
+    setDepositStatus(null);
+    if (!validPositiveNumber(depositAmount)) {
+      setErrorDeposit('Please enter a valid amount greater than 0.');
+      return;
+    }
+    try {
+      setIsDepositing(true);
+      setDepositStatus('Submitting transaction...');
+      const txHash = await depositUSDFC(depositAmount);
+      setDepositTxHash(txHash);
+      setDepositStatus('Deposit submitted.');
+      // Refresh account info after a short delay
+      setTimeout(async () => {
+        try {
+          const info = await getUSDFCAccountInfo();
+          setAccountInfo(info);
+          setDepositStatus('Account info updated.');
+        } catch (e) {
+          console.error('Failed to refresh account info', e);
+          setDepositStatus('Deposit succeeded. Refresh failed; try again later.');
+        }
+      }, 2000);
+    } catch (e: any) {
+      console.error('Deposit tFIL failed', e);
+      setErrorDeposit(e?.message || 'Deposit failed.');
+    } finally {
+      setIsDepositing(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    setErrorApprove(null);
+    setApproveStatus(null);
+    if (!validPositiveNumber(rateAllowance) || !validPositiveNumber(lockupAllowance)) {
+      setErrorApprove('Please enter valid rate and lockup allowances (greater than 0).');
+      return;
+    }
+    try {
+      setIsApproving(true);
+      setApproveStatus('Submitting approval...');
+      const txHash = await approveWarmStorage(rateAllowance, lockupAllowance);
+      setApproveTxHash(txHash);
+      setApproveStatus('Approval submitted.');
+      // Refresh account info after a short delay
+      setTimeout(async () => {
+        try {
+          const info = await getUSDFCAccountInfo();
+          setAccountInfo(info);
+          setApproveStatus('Allowance updated.');
+        } catch (e) {
+          console.error('Failed to refresh account info', e);
+          setApproveStatus('Approval succeeded. Refresh failed; try again later.');
+        }
+      }, 2000);
+    } catch (e: any) {
+      console.error('Approve warm storage failed', e);
+      setErrorApprove(e?.message || 'Approval failed.');
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+
+
+  const handlePaySubscription = async () => {
+    setSubPayError(null);
+    setSubPayStatus(null);
+    if (!validPositiveNumber(subAmount)) {
+      setSubPayError('Enter a valid subscription amount (> 0).');
+      return;
+    }
+    try {
+      setIsSubPaying(true);
+      setSubPayStatus('Submitting subscription payment...');
+      const txHash = await paySubscription(subAmount);
+      setSubPayTxHash(txHash);
+      setSubPayStatus('Subscription payment submitted.');
+      setTimeout(async () => {
+        try {
+          const expiry = await getSubscriptionExpiry();
+          setSubscriptionExpiry(expiry);
+          setSubPayStatus('Subscription updated.');
+        } catch (e) {
+          setSubPayStatus('Payment succeeded. Failed to refresh subscription expiry.');
+        }
+      }, 2000);
+    } catch (e: any) {
+      console.error('Pay subscription failed', e);
+      setSubPayError(e?.message || 'Payment failed');
+    } finally {
+      setIsSubPaying(false);
     }
   };
 
@@ -291,6 +461,187 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Payments & Storage */}
+      {isConnected && (
+        <div className="mt-6 space-y-6 border border-gray-200 rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Payments & Storage</h2>
+              <p className="text-sm text-gray-600">Use Synapse to fund with tFIL and authorize Warm Storage.</p>
+            </div>
+            <div className="text-xs text-gray-500">{ready ? 'Synapse ready' : 'Initializing Synapse...'}</div>
+          </div>
+
+          {/* Deposit Card */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3 border rounded-md p-4">
+              <h3 className="font-medium">Deposit tFIL</h3>
+              <p className="text-xs text-gray-600">Enter how much tFIL to deposit to your Synapse account. This uses the connected wallet on Filecoin Calibration.</p>
+              <div className="space-y-2">
+                <label className="text-xs">Amount (tFIL)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 border rounded px-2 py-1"
+                    placeholder="e.g., 0.10"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                  />
+                  <button
+                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-60"
+                    onClick={handleDeposit}
+                    disabled={!ready || !validPositiveNumber(depositAmount) || isDepositing}
+                  >
+                    {isDepositing ? 'Depositing...' : 'Deposit'}
+                  </button>
+                </div>
+                {validPositiveNumber(depositAmount) && (
+                  <p className="text-xs text-gray-600">Parsed: {fmtUnits(ethers.parseUnits(depositAmount || '0', 18))} tFIL</p>
+                )}
+                {depositStatus && (
+                  <p className="text-xs text-gray-700">{depositStatus}</p>
+                )}
+                {errorDeposit && (
+                  <p className="text-xs text-red-600">{errorDeposit}</p>
+                )}
+                {depositTxHash && (
+                  <p className="text-xs text-gray-600 break-all">Tx hash: {depositTxHash}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Approve Card */}
+            <div className="space-y-3 border rounded-md p-4">
+              <h3 className="font-medium">Approve Warm Storage</h3>
+              <p className="text-xs text-gray-600">Authorize the Warm Storage service to spend tFIL from your account. Set a rate (spend per period) and a lockup (total reserved). You can change these later.</p>
+              <div className="space-y-2">
+                <label className="text-xs">Rate allowance (tFIL)</label>
+                <input
+                  type="text"
+                  className="w-full border rounded px-2 py-1"
+                  placeholder="e.g., 0.50"
+                  value={rateAllowance}
+                  onChange={(e) => setRateAllowance(e.target.value)}
+                />
+                <label className="text-xs">Lockup allowance (tFIL)</label>
+                <input
+                  type="text"
+                  className="w-full border rounded px-2 py-1"
+                  placeholder="e.g., 5"
+                  value={lockupAllowance}
+                  onChange={(e) => setLockupAllowance(e.target.value)}
+                />
+                {(validPositiveNumber(rateAllowance) || validPositiveNumber(lockupAllowance)) && (
+                  <p className="text-xs text-gray-600">Parsed: rate {validPositiveNumber(rateAllowance) ? fmtUnits(ethers.parseUnits(rateAllowance || '0', 18)) : '-'} tFIL, lockup {validPositiveNumber(lockupAllowance) ? fmtUnits(ethers.parseUnits(lockupAllowance || '0', 18)) : '-'} tFIL</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-60"
+                    onClick={handleApprove}
+                    disabled={!ready || !validPositiveNumber(rateAllowance) || !validPositiveNumber(lockupAllowance) || isApproving}
+                  >
+                    {isApproving ? 'Approving...' : 'Approve'}
+                  </button>
+                  <span className="text-xs text-gray-500">Token: {tokenSymbol ?? 'FIL'}</span>
+                </div>
+                {approveStatus && (
+                  <p className="text-xs text-gray-700">{approveStatus}</p>
+                )}
+                {errorApprove && (
+                  <p className="text-xs text-red-600">{errorApprove}</p>
+                )}
+                {approveTxHash && (
+                  <p className="text-xs text-gray-600 break-all">Tx hash: {approveTxHash}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Subscription */}
+            <div className="space-y-3">
+              <h3 className="font-medium">Subscription</h3>
+              <p className="text-xs text-gray-600">Pay your subscription in tFIL. Funds are forwarded to the treasury at 0xC5A6…c5e5.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-xs">Amount (tFIL)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      className="flex-1 border rounded px-2 py-1"
+                      placeholder="e.g., 1"
+                      value={subAmount}
+                      onChange={(e) => setSubAmount(e.target.value)}
+                    />
+                    <button
+                      className="px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-60"
+                      onClick={handlePaySubscription}
+                      disabled={!ready || !validPositiveNumber(subAmount) || isSubPaying}
+                    >
+                      {isSubPaying ? 'Paying...' : 'Pay'}
+                    </button>
+                  </div>
+                  {(validPositiveNumber(subAmount)) && (
+                    <p className="text-xs text-gray-600">Parsed: {fmtUnits(ethers.parseUnits(subAmount || '0', 18))} tFIL</p>
+                  )}
+
+                  {subPayStatus && (<p className="text-xs text-gray-700">{subPayStatus}</p>)}
+                  {subPayError && (<p className="text-xs text-red-600">{subPayError}</p>)}
+                  {subPayTxHash && (<p className="text-xs text-gray-600 break-all">Payment tx: {subPayTxHash}</p>)}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="border rounded-md p-3">
+                    <div className="text-xs text-gray-600">Subscription expiry</div>
+                    <div className="text-sm font-medium">
+                      {subscriptionExpiry && Number(subscriptionExpiry) > 0
+                        ? new Date(Number(subscriptionExpiry) * 1000).toLocaleString()
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Account Info */}
+            <div className="space-y-3">
+              <h3 className="font-medium">Synapse Account Info</h3>
+              {!accountInfo && (
+                <p className="text-sm text-gray-600">No account info yet. Connect your wallet and perform an action to fetch data.</p>
+              )}
+              {accountInfo && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="border rounded-md p-3">
+                      <div className="text-xs text-gray-600">tFIL balance</div>
+                      <div className="text-sm font-medium">
+                        {accountInfo?.balance ? fmtUnits(accountInfo.balance) : accountInfo?.filBalance ? fmtUnits(accountInfo.filBalance) : accountInfo?.usdfcBalance ? fmtUnits(accountInfo.usdfcBalance) : '—'}
+                      </div>
+                    </div>
+                    <div className="border rounded-md p-3">
+                      <div className="text-xs text-gray-600">Allowance rate</div>
+                      <div className="text-sm font-medium">
+                        {accountInfo?.rateAllowance ? fmtUnits(accountInfo.rateAllowance) : accountInfo?.allowanceRate ? fmtUnits(accountInfo.allowanceRate) : '—'}
+                      </div>
+                    </div>
+                    <div className="border rounded-md p-3">
+                      <div className="text-xs text-gray-600">Allowance lockup</div>
+                      <div className="text-sm font-medium">
+                        {accountInfo?.lockupAllowance ? fmtUnits(accountInfo.lockupAllowance) : accountInfo?.allowanceLockup ? fmtUnits(accountInfo.allowanceLockup) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <button className="text-xs underline text-gray-700" onClick={() => setShowRawAccount(v => !v)}>
+                    {showRawAccount ? 'Hide raw account info' : 'Show raw account info'}
+                  </button>
+                  {showRawAccount && (
+                    <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-64">{JSON.stringify(accountInfo, null, 2)}</pre>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Search and Filter */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
