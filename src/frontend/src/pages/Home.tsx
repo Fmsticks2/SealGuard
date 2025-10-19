@@ -19,6 +19,7 @@ import {
 import { useState } from "react";
 import ContactForm from "../components/ContactForm";
 import PerformanceOptimizer from "../components/PerformanceOptimizer";
+import { subscribePlan } from "../lib/subscription";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 60 },
@@ -36,6 +37,24 @@ const staggerContainer = {
 
 export default function Home() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [subscribingPlan, setSubscribingPlan] = useState<number | null>(null);
+  const [lastTx, setLastTx] = useState<{ planId: number; hash: string } | null>(null);
+  const [subError, setSubError] = useState<string | null>(null);
+
+  const handleSubscribe = async (planId: number) => {
+    setSubError(null);
+    setLastTx(null);
+    setSubscribingPlan(planId);
+    try {
+      const hash = await subscribePlan(planId);
+      setLastTx({ planId, hash });
+    } catch (e: any) {
+      const msg = e?.message || "Subscription failed. Please ensure your wallet is connected.";
+      setSubError(msg);
+    } finally {
+      setSubscribingPlan(null);
+    }
+  };
 
   const testimonials = [
     {
@@ -419,6 +438,9 @@ export default function Home() {
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Choose the plan that fits your needs. All plans include our core security features.
             </p>
+            {subError && (
+              <p className="mt-4 text-sm text-red-600">{subError}</p>
+            )}
           </motion.div>
 
           <motion.div 
@@ -453,9 +475,12 @@ export default function Home() {
                   <span>Standard verification certificates</span>
                 </li>
               </ul>
-              <button className="w-full bg-gray-900 text-white py-3 rounded-xl font-semibold hover:bg-gray-800 transition-colors">
-                Get Started
+              <button onClick={() => handleSubscribe(1)} disabled={subscribingPlan === 1} className="w-full bg-gray-900 text-white py-3 rounded-xl font-semibold hover:bg-gray-800 transition-colors">
+                {subscribingPlan === 1 ? 'Processing…' : 'Get Started'}
               </button>
+              {lastTx?.planId === 1 && (
+                <p className="mt-2 text-sm text-gray-600">Transaction submitted: <a className="underline" href={`https://calibration.filfox.info/en/tx/${lastTx.hash}`} target="_blank" rel="noreferrer">{lastTx.hash.slice(0, 10)}…</a></p>
+              )}
             </motion.div>
 
             {/* Professional Plan */}
@@ -490,9 +515,12 @@ export default function Home() {
                   <span>Custom integrations</span>
                 </li>
               </ul>
-              <button className="w-full bg-white text-blue-600 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors">
-                Get Started
+              <button onClick={() => handleSubscribe(2)} disabled={subscribingPlan === 2} className="w-full bg-white text-blue-600 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors">
+                {subscribingPlan === 2 ? 'Processing…' : 'Get Started'}
               </button>
+              {lastTx?.planId === 2 && (
+                <p className="mt-2 text-sm text-blue-100">Transaction submitted: <a className="underline" href={`https://calibration.filfox.info/en/tx/${lastTx.hash}`} target="_blank" rel="noreferrer">{lastTx.hash.slice(0, 10)}…</a></p>
+              )}
             </motion.div>
 
             {/* Enterprise Plan */}
